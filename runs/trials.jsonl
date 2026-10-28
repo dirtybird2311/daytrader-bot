@@ -1,1 +1,2 @@
 {"run_id": "20261028-184320-35ef9e", "time": "2026-10-28T18:43:20+00:00", "config_hash": "35ef9ea9c6", "strategy": "spy_noise", "period": "tune", "label": "", "days": 1511, "daily_sharpe": 0.05889450082880374}
+{"run_id": "20261028-184517-1f85ad", "time": "2026-10-28T18:45:17+00:00", "config_hash": "1f85ad55d8", "strategy": "spy_noise", "period": "tune", "label": "", "days": 1511, "daily_sharpe": 0.06800761178739782}
