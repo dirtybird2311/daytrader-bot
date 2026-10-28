@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "daytrader"
+version = "0.1.0"
+description = "Backtest-first intraday trading research: SPY noise-area momentum and stocks-in-play ORB"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.1",
+  "pyarrow>=14",
+  "plotly>=5.18",
+  "pyyaml>=6",
+  "requests>=2.31",
+  "scipy>=1.11",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+
+[tool.setuptools.packages.find]
+include = ["daytrader*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

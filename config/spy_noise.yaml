@@ -1,0 +1,52 @@
+# SPY intraday momentum ("noise area"), after Zarattini, Aziz & Barbon,
+# "Beat the Market: An Effective Intraday Momentum Strategy for S&P500 ETF (SPY)".
+# Defaults reproduce the paper's rules; change them only on the tune period.
+
+strategy: spy_noise
+symbol: SPY
+
+data:
+  start: "2016-01-01"
+  end: null              # null = up to the latest completed day
+  cache_dir: data
+
+# Every trading day in the span is used; nothing is hand-picked.
+# Tune freely, validate to check, score the holdout once at the very end.
+periods:
+  tune: ["2016-01-01", "2021-12-31"]
+  validate: ["2022-01-01", "2023-12-31"]
+  holdout: ["2024-01-01", null]
+
+params:
+  lookback_days: 14        # days averaged for the noise band (paper: 14)
+  vol_multiplier: 1.0      # scales band width (paper base model: 1.0)
+  first_check: "10:00"     # first entry check (paper: 10:00)
+  check_every_min: 30      # checks at HH:00 and HH:30 (paper: 30)
+  stop_check: half_hour    # half_hour | every_minute (paper text is ambiguous)
+  allow_short: true        # false = long-only (set false if Robinhood cannot short)
+
+sizing:
+  mode: vol_target         # vol_target | fixed
+  target_daily_vol: 0.02   # paper: 2%
+  max_leverage: 4.0        # paper: 4x. Live small accounts will use less.
+  vol_lookback_days: 14
+
+costs:
+  commission_per_share: 0.0035   # paper: IBKR $0.0035/share (conservative for Robinhood)
+  slippage_per_share: 0.001      # paper: $0.001/share
+  fill_delay_bars: 1             # decision on a bar's close fills at the next bar's open
+
+account:
+  starting_equity: 25000
+
+benchmark:
+  flat_band: 0.003         # SPY day within +/-0.3% counts as "flat"
+
+# Published reference numbers, shown in the report for the replication check
+reference:
+  source: "Zarattini, Aziz & Barbon (2024), May 2007 - Apr 2024"
+  sharpe: 1.33
+  annual_return: 0.196
+  annual_vol: 0.143
+  max_drawdown: 0.25
+  trades_per_day: 1.8

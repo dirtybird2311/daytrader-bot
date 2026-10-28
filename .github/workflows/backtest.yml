@@ -1,0 +1,136 @@
+name: Backtest
+
+# Start from the GitHub app: Actions -> Backtest -> Run workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: What to run
+        type: choice
+        options: [backtest, sweep, download-only, synthetic-check]
+        default: backtest
+      period:
+        description: Period to score (sweeps always use tune)
+        type: choice
+        options: [tune, validate, holdout, all]
+        default: tune
+      long_only:
+        description: Long-only (no shorting)
+        type: boolean
+        default: false
+      unlock_holdout:
+        description: I am ready to score the holdout (once)
+        type: boolean
+        default: false
+      grid:
+        description: Sweep grid (sweep only)
+        type: string
+        default: "--grid lookback_days=10,12,14,16,18 --grid vol_multiplier=0.8,0.9,1.0,1.1,1.2"
+      extra_args:
+        description: Extra flags, e.g. --set costs.slippage_per_share=0.002
+        type: string
+        default: ""
+
+permissions:
+  contents: write   # to commit the trial log in runs/
+
+concurrency:
+  group: backtest
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+      ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+      CONFIG: config/spy_noise.yaml
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Tests (lookahead checks must pass before any result is trusted)
+        run: pytest -q
+
+      - name: Restore market data cache
+        if: inputs.command != 'synthetic-check'
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: bars-${{ github.run_id }}
+          restore-keys: bars-
+
+      - name: Download new data from Alpaca
+        if: inputs.command != 'synthetic-check'
+        run: python -m daytrader download --config "$CONFIG"
+
+      - name: Save market data cache
+        if: inputs.command != 'synthetic-check'
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: bars-${{ github.run_id }}
+
+      - name: Synthetic check
+        if: inputs.command == 'synthetic-check'
+        run: python -m daytrader backtest --config "$CONFIG" --period tune --synthetic
+
+      - name: Backtest
+        if: inputs.command == 'backtest'
+        env:
+          EXTRA: ${{ inputs.extra_args }}
+          PERIOD: ${{ inputs.period }}
+          LONG_ONLY: ${{ inputs.long_only }}
+          UNLOCK: ${{ inputs.unlock_holdout }}
+        run: |
+          FLAGS="$EXTRA"
+          if [ "$LONG_ONLY" = "true" ]; then FLAGS="$FLAGS --long-only"; fi
+          if [ "$UNLOCK" = "true" ]; then FLAGS="$FLAGS --unlock-holdout"; fi
+          python -m daytrader backtest --config "$CONFIG" --period "$PERIOD" $FLAGS
+
+      - name: Sweep
+        if: inputs.command == 'sweep'
+        env:
+          EXTRA: ${{ inputs.extra_args }}
+          GRID: ${{ inputs.grid }}
+          LONG_ONLY: ${{ inputs.long_only }}
+        run: |
+          FLAGS="$EXTRA"
+          if [ "$LONG_ONLY" = "true" ]; then FLAGS="$FLAGS --long-only"; fi
+          python -m daytrader sweep --config "$CONFIG" --period tune $GRID $FLAGS
+          python -m daytrader backtest --config "$CONFIG" --period tune --label after-sweep $FLAGS
+
+      - name: Summary and email
+        if: inputs.command == 'backtest' || inputs.command == 'sweep' || inputs.command == 'synthetic-check'
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          REPORT_EMAIL_TO: ${{ secrets.REPORT_EMAIL_TO }}
+        run: python -m daytrader.notify
+
+      - name: Upload report
+        if: always() && inputs.command != 'download-only'
+        uses: actions/upload-artifact@v4
+        with:
+          name: report
+          path: reports/
+          if-no-files-found: ignore
+          retention-days: 90
+
+      - name: Commit trial log
+        if: inputs.command == 'backtest' || inputs.command == 'sweep'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add runs/
+          if git diff --cached --quiet; then echo "No new trials"; exit 0; fi
+          git commit -m "Log backtest trial (${{ inputs.command }}, ${{ inputs.period }})"
+          git push
