@@ -11,7 +11,18 @@ Research tool, not investment advice.
 | Strategy | Source | Status |
 |---|---|---|
 | SPY "noise area" intraday momentum | Zarattini, Aziz & Barbon (2024) | built |
-| Opening-range breakout on stocks in play | Zarattini, Barbon & Aziz (2024) | next |
+| Opening-range breakout on stocks in play | Zarattini, Barbon & Aziz (2024) | built (`config/orb.yaml`) |
+
+### Stocks-in-play data
+
+Ten years of minute bars for every stock is far too much to download, so the
+downloader works in stages (`daytrader/data/universe.py`): daily bars for every
+listed and delisted stock; the 9:30–9:35 bar for each plausible candidate; a
+point-in-time screen; then full minute bars only for the top 30 each day. The first
+full download takes several hours and spans two or three runs. Each run stops cleanly
+at its time budget, saves its progress to the cache, and the next run resumes.
+Pick `orb` as the strategy and `download-only` as the command until a run reports the
+download complete.
 
 * **No lookahead by construction.** Strategies only ever receive `History` (completed
   days) and `TodayView` (today's bars up to the current minute). Market data is

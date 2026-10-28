@@ -55,12 +55,20 @@ def _validate(cfg: dict[str, Any]) -> None:
     if missing:
         raise ValueError(f"Config missing sections: {missing}")
     p = cfg["params"]
-    if p["stop_check"] not in ("half_hour", "every_minute"):
-        raise ValueError("params.stop_check must be 'half_hour' or 'every_minute'")
-    if cfg["sizing"]["mode"] not in ("vol_target", "fixed"):
-        raise ValueError("sizing.mode must be 'vol_target' or 'fixed'")
-    if cfg["costs"]["fill_delay_bars"] < 1:
-        raise ValueError("costs.fill_delay_bars must be >= 1 (no same-bar fills)")
+    if cfg["strategy"] == "spy_noise":
+        if p["stop_check"] not in ("half_hour", "every_minute"):
+            raise ValueError("params.stop_check must be 'half_hour' or 'every_minute'")
+        if cfg["sizing"]["mode"] not in ("vol_target", "fixed"):
+            raise ValueError("sizing.mode must be 'vol_target' or 'fixed'")
+        if cfg["costs"]["fill_delay_bars"] < 1:
+            raise ValueError("costs.fill_delay_bars must be >= 1 (no same-bar fills)")
+    elif cfg["strategy"] == "orb":
+        d = cfg["download"]
+        if int(p["top_n"]) > int(d["top_k"]):
+            raise ValueError("params.top_n cannot exceed download.top_k (minute bars only exist for the top_k)")
+        for k, v in d["screen"].items():
+            if float(p[k]) < float(v):
+                raise ValueError(f"params.{k} is looser than the download screen ({v}); minute data won't exist")
     # Periods must be in time order and must not overlap.
     bounds = [period_bounds(cfg, n) for n in ("tune", "validate", "holdout")]
     for (s1, e1), (s2, _) in zip(bounds, bounds[1:]):

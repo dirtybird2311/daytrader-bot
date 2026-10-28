@@ -20,6 +20,7 @@ import pandas as pd
 import requests
 
 BARS_URL = "https://data.alpaca.markets/v2/stocks/bars"
+TRADING_URLS = ("https://paper-api.alpaca.markets", "https://api.alpaca.markets")
 
 
 class RateLimiter:
@@ -49,29 +50,58 @@ class AlpacaBars:
         self.session.headers.update({"APCA-API-KEY-ID": self.key_id, "APCA-API-SECRET-KEY": self.secret})
 
     def fetch(self, symbol: str, start: dt.datetime, end: dt.datetime, timeframe: str = "1Min") -> pd.DataFrame:
+        df = self.fetch_multi([symbol], start, end, timeframe)
+        return df.drop(columns="symbol")
+
+    def fetch_multi(self, symbols: list[str], start: dt.datetime, end: dt.datetime,
+                    timeframe: str = "1Min") -> pd.DataFrame:
+        """Bars for many symbols in one paged request. Columns: symbol, t, o, h, l, c, v."""
         params = {
-            "symbols": symbol, "timeframe": timeframe, "start": start.isoformat(), "end": end.isoformat(),
-            "limit": 10000, "adjustment": "raw", "feed": self.feed, "sort": "asc",
+            "symbols": ",".join(symbols), "timeframe": timeframe, "start": start.isoformat(),
+            "end": end.isoformat(), "limit": 10000, "adjustment": "raw", "feed": self.feed, "sort": "asc",
         }
-        rows: list[dict] = []
+        frames: list[pd.DataFrame] = []
         token = None
         while True:
             if token:
                 params["page_token"] = token
             data = self._get(params)
-            rows.extend(data.get("bars", {}).get(symbol, []) or [])
+            for sym, rows in (data.get("bars") or {}).items():
+                if rows:
+                    f = pd.DataFrame(rows)[["t", "o", "h", "l", "c", "v"]]
+                    f.insert(0, "symbol", sym)
+                    frames.append(f)
             token = data.get("next_page_token")
             if not token:
                 break
-        if not rows:
-            return pd.DataFrame(columns=["t", "o", "h", "l", "c", "v"])
-        df = pd.DataFrame(rows)
-        return df[["t", "o", "h", "l", "c", "v"]]
+        if not frames:
+            return pd.DataFrame(columns=["symbol", "t", "o", "h", "l", "c", "v"])
+        return pd.concat(frames, ignore_index=True)
 
-    def _get(self, params: dict) -> dict:
+    def list_assets(self) -> pd.DataFrame:
+        """All US equities Alpaca knows, active and inactive (delisted), from the trading API."""
+        out = []
+        for base in TRADING_URLS:
+            for status in ("active", "inactive"):
+                self.limiter.wait()
+                resp = self.session.get(f"{base}/v2/assets", params={"status": status, "asset_class": "us_equity"},
+                                        timeout=120)
+                if resp.status_code in (401, 403):
+                    out = []
+                    break
+                resp.raise_for_status()
+                out.extend(resp.json())
+            if out:
+                break
+        if not out:
+            raise RuntimeError("Could not list assets with these keys on either the paper or live trading API.")
+        df = pd.DataFrame(out)
+        return df.reindex(columns=["symbol", "name", "exchange", "status", "tradable", "shortable", "easy_to_borrow"])
+
+    def _get(self, params: dict, url: str = None) -> dict:
         for attempt in range(6):
             self.limiter.wait()
-            resp = self.session.get(BARS_URL, params=params, timeout=60)
+            resp = self.session.get(url or BARS_URL, params=params, timeout=90)
             if resp.status_code == 429 or resp.status_code >= 500:
                 time.sleep(min(60, 2 ** attempt * 2))
                 continue

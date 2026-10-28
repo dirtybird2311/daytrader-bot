@@ -29,13 +29,48 @@ from .report.html import build_report
 from .strategies import build_strategy
 
 
-def _days(cfg: dict, synthetic: bool):
-    if synthetic:
-        return make_days(n_days=2100, start=dt.date(2016, 1, 4), seed=7, momentum=0.03)
-    from .data.store import load_days
-    start = dt.date.fromisoformat(str(cfg["data"]["start"]))
-    end = cfg["data"].get("end")
-    return load_days(cfg["symbol"], start, dt.date.fromisoformat(str(end)) if end else None, cfg["data"]["cache_dir"])
+class Runner:
+    """Loads a strategy's data once, then runs any config variant over any date range."""
+
+    def __init__(self, cfg: dict, synthetic: bool):
+        self.kind = cfg["strategy"]
+        if self.kind == "orb":
+            from .data.orb_data import CachedOrbData, SyntheticOrbData
+            self.data = (SyntheticOrbData(n_days=1600, n_symbols=60, seed=7, momentum=0.12, start=dt.date(2016, 1, 4))
+                         if synthetic else CachedOrbData(cfg["data"]["cache_dir"]))
+        else:
+            if synthetic:
+                self.days = make_days(n_days=2100, start=dt.date(2016, 1, 4), seed=7, momentum=0.03)
+            else:
+                from .data.store import load_days
+                start = dt.date.fromisoformat(str(cfg["data"]["start"]))
+                end = cfg["data"].get("end")
+                self.days = load_days(cfg["symbol"], start, dt.date.fromisoformat(str(end)) if end else None,
+                                      cfg["data"]["cache_dir"])
+            self._by_date = {d.date: d for d in self.days}
+        self.synthetic = synthetic
+
+    def run(self, cfg: dict, start, end):
+        if self.kind == "orb":
+            from .backtest.orb import OrbEngine
+            if not self.synthetic:
+                missing = [d for d in self.data.dates if (not start or d >= start) and (not end or d <= end)
+                           and not self.data.has_minutes(d)]
+                if missing:
+                    sys.exit(f"Minute data is missing for {len(missing)} days ({missing[0]} to {missing[-1]}). "
+                             "Run the download again; it resumes where it stopped.")
+            return OrbEngine(cfg).run(self.data, start, end)
+        return Engine(cfg, build_strategy(cfg)).run(self.days, start, end)
+
+    def day_lookup(self, date, symbol=None):
+        if self.kind == "orb":
+            return self.data.minute_day(date, symbol)
+        return self._by_date.get(date)
+
+
+def _on_github() -> bool:
+    import os
+    return bool(os.environ.get("GITHUB_ACTIONS"))
 
 
 def _code_version() -> str:
@@ -57,6 +92,15 @@ def _apply_flags(cfg: dict, args) -> dict:
 def cmd_download(args) -> None:
     from .data.alpaca import AlpacaBars, sync_symbol
     cfg = load_config(args.config)
+    if cfg["strategy"] == "orb":
+        from .data.universe import sync_all
+        client = AlpacaBars(requests_per_minute=args.rpm)
+        status = sync_all(client, cfg, args.max_minutes)
+        print(json.dumps(status, indent=2))
+        if not status["complete"]:
+            msg = "Download stopped at its time budget; run it again to continue (cached progress is kept)."
+            print(f"::warning title=Download incomplete::{msg}" if _on_github() else msg)
+        return
     start = dt.date.fromisoformat(str(cfg["data"]["start"]))
     # Pull a month of extra history so the first test days have their 14-day lookback.
     start = (start.replace(day=1) - dt.timedelta(days=45)).replace(day=1)
@@ -72,9 +116,9 @@ def cmd_backtest(args) -> None:
     period = args.period
     if period == "holdout" and not args.unlock_holdout and not args.synthetic:
         sys.exit("The holdout is scored once, at the very end. Re-run with --unlock-holdout if that time has come.")
-    days = _days(cfg, args.synthetic)
+    runner = Runner(cfg, args.synthetic)
     start, end = period_bounds(cfg, period)
-    res = Engine(cfg, build_strategy(cfg)).run(days, start, end)
+    res = runner.run(cfg, start, end)
     if res.daily.empty:
         sys.exit(f"No trading days in {period} ({start} to {end or 'now'}). Is the data downloaded?")
 
@@ -87,7 +131,7 @@ def cmd_backtest(args) -> None:
     out_dir = Path(args.out)
     stem = f"{run_id}_{cfg['strategy']}_{period}" + ("_SYNTHETIC" if args.synthetic else "")
     report = build_report(res, a, cfg, period, run_id, out_dir / f"{stem}.html",
-                          days_by_date={d.date: d for d in days}, sweep=sweep, synthetic=args.synthetic,
+                          day_lookup=runner.day_lookup, sweep=sweep, synthetic=args.synthetic,
                           holdout_views=holdout_views(cfg["strategy"]) if period == "holdout" else 0,
                           code_version=_code_version())
     res.trades.to_csv(out_dir / f"{stem}_trades.csv", index=False)
@@ -113,14 +157,14 @@ def cmd_sweep(args) -> None:
     for g in args.grid:
         key, values = g.split("=", 1)
         grid[key] = [json.loads(v) for v in values.split(",")]
-    days = _days(cfg0, args.synthetic)
+    runner = Runner(cfg0, args.synthetic)
     start, end = period_bounds(cfg0, "tune")
     rows = []
     combos = list(itertools.product(*grid.values()))
     for k, combo in enumerate(combos, 1):
         params = dict(zip(grid.keys(), combo))
         cfg = override(cfg0, {f"params.{p}": v for p, v in params.items()})
-        res = Engine(cfg, build_strategy(cfg)).run(days, start, end)
+        res = runner.run(cfg, start, end)
         perf = performance(res.daily["ret"])
         run_id = dt.datetime.now().strftime("%Y%m%d-%H%M%S") + f"-s{k:03d}-" + config_hash(cfg)[:6]
         record_trial(run_id, cfg, "tune", res.daily, label="sweep", synthetic=args.synthetic)
@@ -142,6 +186,7 @@ def main(argv=None) -> None:
     d = sub.add_parser("download", help="sync 1-minute bars from Alpaca into the cache")
     d.add_argument("--config", required=True)
     d.add_argument("--rpm", type=int, default=120, help="requests per minute (Alpaca free plan allows 200, shared per login)")
+    d.add_argument("--max-minutes", type=float, default=300, help="stop cleanly after this long (resumable)")
     d.set_defaults(func=cmd_download)
 
     for name, fn in (("backtest", cmd_backtest), ("sweep", cmd_sweep)):
@@ -162,11 +207,13 @@ def main(argv=None) -> None:
     args = ap.parse_args(argv)
     try:
         args.func(args)
-    except Exception as exc:
-        import os
-        if os.environ.get("GITHUB_ACTIONS"):
+    except (Exception, SystemExit) as exc:
+        if isinstance(exc, SystemExit) and exc.code in (None, 0):
+            raise
+        if _on_github():
             # Shows on the run page (and is readable through the API) even when logs aren't.
-            msg = f"{type(exc).__name__}: {exc}".replace("%", "%25").replace("\n", "%0A")
+            text = str(exc.code) if isinstance(exc, SystemExit) else f"{type(exc).__name__}: {exc}"
+            msg = text.replace("%", "%25").replace("\n", "%0A")
             print(f"::error title=daytrader {args.cmd} failed::{msg}")
         raise
 

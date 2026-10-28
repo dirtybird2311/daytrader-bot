@@ -1,0 +1,57 @@
+# Opening-range breakout on stocks in play, after Zarattini, Barbon & Aziz,
+# "A Profitable Day Trading Strategy For The U.S. Equity Market" (2024).
+# Defaults reproduce the paper's rules; change them only on the tune period.
+
+strategy: orb
+symbol: US equities (stocks in play)
+
+data:
+  start: "2016-01-01"
+  end: null
+  cache_dir: data
+
+periods:
+  tune: ["2016-01-01", "2021-12-31"]
+  validate: ["2022-01-01", "2023-12-31"]
+  holdout: ["2024-01-01", null]
+
+params:
+  lookback_days: 14        # ATR, average volume and relative-volume lookback (paper: 14)
+  min_price: 5.0           # opening price above $5
+  min_avg_volume: 1000000  # 14-day average daily volume
+  min_atr: 0.50            # 14-day ATR in dollars
+  min_rel_volume: 1.0      # opening 5-min volume vs its 14-day average (paper: 100%)
+  top_n: 20                # stocks traded per day (paper: 20)
+  stop_atr: 0.10           # protective stop distance as a fraction of ATR (paper: 10%)
+  allow_short: true        # false = long-only (Robinhood may not allow shorting)
+
+sizing:
+  risk_per_trade: 0.01     # a stop-out loses 1% of that stock's slot (equity / top_n)
+  max_leverage: 4.0        # per-slot notional cap (paper: 4x). Live small accounts will use less.
+
+costs:
+  commission_per_share: 0.0035   # paper: $0.0035/share
+  slippage_per_share: 0.01       # paper assumes none; 1 cent each side is a conservative guess for breakouts
+
+account:
+  starting_equity: 25000
+
+benchmark:
+  flat_band: 0.003
+
+# What the downloader prepares. Its screen must be at least as loose as any screen tested,
+# and top_k at least as large as any top_n tested.
+download:
+  top_k: 30
+  screen:
+    min_price: 5.0
+    min_avg_volume: 1000000
+    min_atr: 0.50
+    min_rel_volume: 1.0
+
+reference:
+  source: "Zarattini, Barbon & Aziz (2024), Jan 2016 - Dec 2023"
+  sharpe: 2.81
+  annual_return: 0.416
+  annual_vol: 0.148
+  max_drawdown: 0.12

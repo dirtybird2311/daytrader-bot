@@ -249,7 +249,7 @@ def _table(df: pd.DataFrame, cls: str = "") -> str:
 
 
 def build_report(res: BacktestResult, a: Analysis, cfg: dict, period: str, run_id: str, out_path: Path,
-                 days_by_date: dict | None = None, sweep: pd.DataFrame | None = None,
+                 day_lookup=None, sweep: pd.DataFrame | None = None,
                  synthetic: bool = False, holdout_views: int = 0, code_version: str = "") -> Path:
     p, t, perf, mp = cfg["params"], a.trades, a.perf, a.market_perf
     d = res.daily
@@ -326,21 +326,24 @@ def build_report(res: BacktestResult, a: Analysis, cfg: dict, period: str, run_i
         exc = excursion_chart(trades)
         show = trades.sort_values(["date", "entry_bar"], ascending=False).head(25)
         tt = pd.DataFrame({
-            "Date": show["date"].dt.strftime("%Y-%m-%d"), "Side": show["side"].map({1: "Long", -1: "Short"}),
+            "Date": show["date"].dt.strftime("%Y-%m-%d"),
+            **({"Stock": show["symbol"]} if "symbol" in show else {}),
+            "Side": show["side"].map({1: "Long", -1: "Short"}),
             "Shares": show["shares"], "Entry": show["entry_time"] + " @ " + show["entry_px"].map("{:.2f}".format),
             "Exit": show["exit_time"] + " @ " + show["exit_px"].map("{:.2f}".format),
             "Exit reason": show["exit_reason"].str.replace("_", " "), "P&L": show["pnl"].map("{:+,.0f}".format),
             "R": show["r_multiple"].map("{:+.2f}".format)})
         examples = ""
-        if days_by_date:
+        if day_lookup:
             picks = pd.concat([trades.nlargest(2, "pnl"), trades.nsmallest(2, "pnl")])
             for _, tr in picks.iterrows():
-                day = days_by_date.get(tr["date"].date())
+                sym = tr["symbol"] if "symbol" in tr else None
+                day = day_lookup(tr["date"].date(), sym)
                 if day is None:
                     continue
                 label = "Best" if tr["pnl"] > 0 else "Worst"
                 side = "long" if tr["side"] > 0 else "short"
-                examples += (f"<h4>{label}: {tr['date']:%b %d, %Y}, {side}, {tr['r_multiple']:+.2f}R "
+                examples += (f"<h4>{label}: {html.escape(str(sym)) + ' · ' if sym else ''}{tr['date']:%b %d, %Y}, {side}, {tr['r_multiple']:+.2f}R "
                              f"(${tr['pnl']:+,.0f}), exit: {html.escape(tr['exit_reason'].replace('_', ' '))}</h4>"
                              + trade_chart(day, tr))
         trade_section = f"""
@@ -362,9 +365,10 @@ def build_report(res: BacktestResult, a: Analysis, cfg: dict, period: str, run_i
         ("Tune / validate / holdout", " | ".join(f"{k} {v[0]}–{v[1] or 'now'}" for k, v in cfg["periods"].items())),
         ("Commission", f"${cfg['costs']['commission_per_share']}/share"),
         ("Slippage", f"${cfg['costs']['slippage_per_share']}/share each side"),
-        ("Fill delay", f"{cfg['costs']['fill_delay_bars']} bar(s) after the decision"),
+        ("Fills", f"{cfg['costs']['fill_delay_bars']} bar(s) after the decision" if "fill_delay_bars" in cfg["costs"]
+         else "resting stop orders: worse of level and bar open; stop assumed hit if a bar touches entry and stop"),
         ("Shorting", "on" if p.get("allow_short") else "off (long-only)"),
-        ("Stop checks", p.get("stop_check")), ("Sizing", f"{cfg['sizing']['mode']}, max {cfg['sizing']['max_leverage']}x"),
+        ("Sizing", ", ".join(f"{k}={v}" for k, v in cfg["sizing"].items())),
         ("Parameters", ", ".join(f"{k}={v}" for k, v in p.items())),
         ("Starting equity", f"${cfg['account']['starting_equity']:,}"),
     ], columns=["Item", "Value"])

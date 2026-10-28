@@ -4,6 +4,11 @@ name: Backtest
 on:
   workflow_dispatch:
     inputs:
+      strategy:
+        description: Strategy
+        type: choice
+        options: [spy_noise, orb]
+        default: spy_noise
       command:
         description: What to run
         type: choice
@@ -25,7 +30,7 @@ on:
       grid:
         description: Sweep grid (sweep only)
         type: string
-        default: "--grid lookback_days=10,12,14,16,18 --grid vol_multiplier=0.8,0.9,1.0,1.1,1.2"
+        default: ""   # empty = the strategy's standard grid
       extra_args:
         description: Extra flags, e.g. --set costs.slippage_per_share=0.002
         type: string
@@ -41,11 +46,11 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     env:
       ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
       ALPACA_API_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
-      CONFIG: config/spy_noise.yaml
+      CONFIG: config/${{ inputs.strategy }}.yaml
     steps:
       - uses: actions/checkout@v4
 
@@ -65,19 +70,22 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: data
-          key: bars-${{ github.run_id }}
-          restore-keys: bars-
+          key: data-${{ inputs.strategy }}-${{ github.run_id }}
+          restore-keys: |
+            data-${{ inputs.strategy }}-
+            ${{ inputs.strategy == 'spy_noise' && 'bars-' || 'none-' }}
 
       - name: Download new data from Alpaca
         if: inputs.command != 'synthetic-check'
-        run: python -m daytrader download --config "$CONFIG"
+        # The stocks-in-play download is large; it stops cleanly at its budget and resumes next run.
+        run: python -m daytrader download --config "$CONFIG" --max-minutes 300
 
-      - name: Save market data cache
-        if: inputs.command != 'synthetic-check'
+      - name: Save market data cache (even after a partial download)
+        if: always() && inputs.command != 'synthetic-check'
         uses: actions/cache/save@v4
         with:
           path: data
-          key: bars-${{ github.run_id }}
+          key: data-${{ inputs.strategy }}-${{ github.run_id }}
 
       - name: Synthetic check
         if: inputs.command == 'synthetic-check'
@@ -105,6 +113,13 @@ jobs:
         run: |
           FLAGS="$EXTRA"
           if [ "$LONG_ONLY" = "true" ]; then FLAGS="$FLAGS --long-only"; fi
+          if [ -z "$GRID" ]; then
+            if [ "${{ inputs.strategy }}" = "orb" ]; then
+              GRID="--grid top_n=10,15,20,25,30 --grid stop_atr=0.05,0.075,0.1,0.15,0.2"
+            else
+              GRID="--grid lookback_days=10,12,14,16,18 --grid vol_multiplier=0.8,0.9,1.0,1.1,1.2"
+            fi
+          fi
           python -m daytrader sweep --config "$CONFIG" --period tune $GRID $FLAGS
           python -m daytrader backtest --config "$CONFIG" --period tune --label after-sweep $FLAGS
 
@@ -148,5 +163,6 @@ jobs:
           git config user.email "noreply@anthropic.com"
           git add runs/
           if git diff --cached --quiet; then echo "No new trials"; exit 0; fi
-          git commit -m "Log backtest trial (${{ inputs.command }}, ${{ inputs.period }})"
+          git commit -m "Log backtest trial (${{ inputs.strategy }}, ${{ inputs.command }}, ${{ inputs.period }})"
+          git pull -q --rebase origin main
           git push
