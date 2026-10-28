@@ -59,3 +59,23 @@ def test_summary_markdown():
     md = summary_markdown({"period": "tune", "passed": False, "sharpe": 0.8, "annual_return": 0.05,
                            "max_drawdown": -0.12, "trades": 1234, "checks": {"Sharpe": False, "Plateau": None}})
     assert "FAIL" in md and "Not run" in md
+
+
+def test_asset_cleaning_and_tolerant_fetch():
+    import requests
+    from daytrader.data.universe import clean_assets, fetch_tolerant
+    a = pd.DataFrame({"symbol": ["AAPL", "BRK.B", "003CVR016", "26885b100", "SPY", "OTCX"],
+                      "exchange": ["NASDAQ", "NYSE", "NASDAQ", "NYSE", "ARCA", "OTC"]})
+    assert clean_assets(a)["symbol"].tolist() == ["AAPL", "BRK.B", "SPY"]
+
+    class Fake:
+        calls = 0
+
+        def fetch_multi(self, syms, *a):
+            self.calls += 1
+            if "BAD" in syms:
+                raise requests.HTTPError("400 Client Error: Bad Request")
+            return pd.DataFrame({"symbol": syms, "t": "x", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1})
+
+    out = fetch_tolerant(Fake(), ["A", "B", "BAD", "C"], None, None, "1Day", log=lambda *_: None)
+    assert sorted(out["symbol"]) == ["A", "B", "C"]

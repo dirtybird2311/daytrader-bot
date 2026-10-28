@@ -134,12 +134,32 @@ def last_complete_day() -> dt.date:
     return (pd.Timestamp.now(tz=ET) - pd.Timedelta(days=1)).date()
 
 
+def fetch_tolerant(client, symbols: list[str], start, end, timeframe: str, log=print) -> pd.DataFrame:
+    """fetch_multi, but if Alpaca rejects the request (400), split it and drop the bad ticker(s)."""
+    try:
+        return client.fetch_multi(symbols, start, end, timeframe)
+    except Exception as exc:  # requests.HTTPError 400 for an invalid symbol
+        if "400" not in str(exc):
+            raise
+        if len(symbols) == 1:
+            log(f"    skipping rejected symbol {symbols[0]}")
+            return pd.DataFrame(columns=["symbol", "t", "o", "h", "l", "c", "v"])
+        mid = len(symbols) // 2
+        return pd.concat([fetch_tolerant(client, symbols[:mid], start, end, timeframe, log),
+                          fetch_tolerant(client, symbols[mid:], start, end, timeframe, log)], ignore_index=True)
+
+
+def clean_assets(a: pd.DataFrame) -> pd.DataFrame:
+    """Real tickers only (e.g. AAPL, BRK.B); drops escrow/CVR/rights placeholders like 003CVR016."""
+    keep = a["exchange"].isin(EXCHANGES) & a["symbol"].astype(str).str.fullmatch(r"[A-Z]{1,5}(\.[A-Z]{1,2})?")
+    return a[keep].drop_duplicates("symbol").reset_index(drop=True)
+
+
 def sync_assets(client, root: Path, log=print) -> pd.DataFrame:
     path = root / "assets.parquet"
-    if path.exists() and (time.time() - path.stat().st_mtime) < 7 * 86400:
-        return pd.read_parquet(path)
-    a = client.list_assets()
-    a = a[a["exchange"].isin(EXCHANGES)].drop_duplicates("symbol")
+    fresh = path.exists() and (time.time() - path.stat().st_mtime) < 7 * 86400
+    a = pd.read_parquet(path) if fresh else client.list_assets()
+    a = clean_assets(a)
     a.to_parquet(path, index=False)
     log(f"Assets: {len(a):,} US equities ({(a['status'] == 'inactive').sum():,} delisted/inactive)")
     return a
@@ -162,7 +182,7 @@ def sync_daily(client, symbols: list[str], start: dt.date, end: dt.date, root: P
             return False
         frames = []
         for i in range(0, len(symbols), batch):
-            frames.append(client.fetch_multi(symbols[i:i + batch], _et(s, 0, 0), _et(e, 23, 59), "1Day"))
+            frames.append(fetch_tolerant(client, symbols[i:i + batch], _et(s, 0, 0), _et(e, 23, 59), "1Day", log))
         df = pd.concat(frames, ignore_index=True)
         df.to_parquet(path, index=False)
         log(f"  daily {name}: {len(df):,} bars, {df['symbol'].nunique():,} symbols")
@@ -207,7 +227,7 @@ def sync_opening(client, daily: pd.DataFrame, start: dt.date, end: dt.date, root
         for day in [d for d in cal if d.year == m.year and d.month == m.month and start <= d <= end]:
             syms = wanted.get(day, [])
             for i in range(0, len(syms), batch):
-                frames.append(client.fetch_multi(syms[i:i + batch], _et(day, 9, 30), _et(day, 9, 34), "5Min"))
+                frames.append(fetch_tolerant(client, syms[i:i + batch], _et(day, 9, 30), _et(day, 9, 34), "5Min", log))
         df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(
             columns=["symbol", "t", "o", "h", "l", "c", "v"])
         df.to_parquet(path, index=False)
@@ -244,7 +264,7 @@ def sync_minutes(client, features: pd.DataFrame, screen_cfg: dict, top_k: int, s
             return False
         frames = []
         for day in sorted(d for d in by_day if d.year == m.year and d.month == m.month and start <= d <= end):
-            frames.append(client.fetch_multi(by_day[day], _et(day, 9, 30), _et(day, 15, 59), "1Min"))
+            frames.append(fetch_tolerant(client, by_day[day], _et(day, 9, 30), _et(day, 15, 59), "1Min", log))
         df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(
             columns=["symbol", "t", "o", "h", "l", "c", "v"])
         df.to_parquet(path, index=False)
