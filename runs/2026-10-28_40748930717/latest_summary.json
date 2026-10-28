@@ -1,0 +1,21 @@
+{
+  "run_id": "20261028-185242-1f85ad",
+  "period": "tune",
+  "passed": true,
+  "synthetic": false,
+  "sharpe": 1.08,
+  "annual_return": 0.0884,
+  "max_drawdown": -0.0871,
+  "trades": 696,
+  "checks": {
+    "Closed trades": true,
+    "Sharpe ratio, net of costs": true,
+    "Profit factor": true,
+    "Max drawdown": true,
+    "Beats SPY, risk-adjusted (Sharpe gap)": true,
+    "Sharpe with costs doubled": true,
+    "Positive trailing year": true,
+    "Neighbouring settings also profitable": true
+  },
+  "report": "reports/20261028-185242-1f85ad_spy_noise_tune.html"
+}
