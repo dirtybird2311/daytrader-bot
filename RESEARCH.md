@@ -86,7 +86,7 @@ Caveats:            Four filters = four more trials in the log; the deflated Sha
 Registered:         2026-10-28
 ```
 
-### Buy the dip on parabolic runners (queue #7)
+### Buy the dip on parabolic runners (queue #8)
 ```
 Rule:               Universe: stocks passing the stocks-in-play liquidity screen
                     (price > $5, 14-day avg volume >= 1M, ATR > $0.50).
