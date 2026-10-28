@@ -406,7 +406,7 @@ footer{font-size:12px;color:#52514e}
     page = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backtest {html.escape(cfg['strategy'])} {html.escape(period)}</title>
-<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js" charset="utf-8"></script>
 <style>{css}</style></head>
 <body><main>
 <header style="display:flex;flex-direction:column;gap:8px">
