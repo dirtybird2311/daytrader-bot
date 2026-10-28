@@ -75,8 +75,11 @@ class AlpacaBars:
             if resp.status_code == 429 or resp.status_code >= 500:
                 time.sleep(min(60, 2 ** attempt * 2))
                 continue
-            if resp.status_code == 403:
-                raise RuntimeError("Alpaca refused the request (403). Check the API keys and data subscription.")
+            if resp.status_code in (401, 403):
+                raise RuntimeError(f"Alpaca refused the request ({resp.status_code}): {resp.text[:300]}. "
+                                   "Check the ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY secrets.")
+            if resp.status_code == 422:
+                raise RuntimeError(f"Alpaca rejected the request parameters (422): {resp.text[:300]}")
             resp.raise_for_status()
             return resp.json()
         raise RuntimeError("Alpaca kept rate-limiting or failing after 6 attempts.")
@@ -95,16 +98,17 @@ def sync_symbol(client: AlpacaBars, symbol: str, start: dt.date, end: dt.date, c
     """Fill the cache for symbol between start and end. Returns months downloaded."""
     folder = Path(cache_dir) / "bars" / symbol
     folder.mkdir(parents=True, exist_ok=True)
-    today = dt.date.today()
+    # The free plan refuses SIP data from the last 15 minutes, so never ask past now - 20 min.
+    latest_allowed = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=20)
     fetched = 0
     for m in month_starts(start, end):
         path = folder / f"{m:%Y-%m}.parquet"
-        month_end = dt.date(m.year + (m.month == 12), m.month % 12 + 1, 1)
-        complete = month_end <= today
+        month_end = dt.datetime(m.year + (m.month == 12), m.month % 12 + 1, 1, tzinfo=dt.timezone.utc)
+        complete = month_end <= latest_allowed
         if path.exists() and complete:
             continue
         df = client.fetch(symbol, dt.datetime(m.year, m.month, 1, tzinfo=dt.timezone.utc),
-                          dt.datetime(month_end.year, month_end.month, 1, tzinfo=dt.timezone.utc))
+                          min(month_end, latest_allowed))
         df.to_parquet(path, index=False)
         fetched += 1
         log(f"  {symbol} {m:%Y-%m}: {len(df):,} bars")

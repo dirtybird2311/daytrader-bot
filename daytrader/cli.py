@@ -160,7 +160,15 @@ def main(argv=None) -> None:
         p.set_defaults(func=fn)
 
     args = ap.parse_args(argv)
-    args.func(args)
+    try:
+        args.func(args)
+    except Exception as exc:
+        import os
+        if os.environ.get("GITHUB_ACTIONS"):
+            # Shows on the run page (and is readable through the API) even when logs aren't.
+            msg = f"{type(exc).__name__}: {exc}".replace("%", "%25").replace("\n", "%0A")
+            print(f"::error title=daytrader {args.cmd} failed::{msg}")
+        raise
 
 
 if __name__ == "__main__":
