@@ -128,8 +128,8 @@ jobs:
       - name: Publish report to the reports branch
         if: success() && (inputs.command == 'backtest' || inputs.command == 'sweep')
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
           if git ls-remote --exit-code --heads origin reports >/dev/null; then
             git fetch -q origin reports && git worktree add -q -B reports /tmp/rb origin/reports
           else
@@ -144,8 +144,8 @@ jobs:
       - name: Commit trial log
         if: inputs.command == 'backtest' || inputs.command == 'sweep'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
           git add runs/
           if git diff --cached --quiet; then echo "No new trials"; exit 0; fi
           git commit -m "Log backtest trial (${{ inputs.command }}, ${{ inputs.period }})"
