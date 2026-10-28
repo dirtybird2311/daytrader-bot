@@ -34,14 +34,15 @@ Ranked by expected value per unit of effort and statistical risk. Rank 1 goes ne
 | # | Idea | Source / evidence | Effort | Overfitting risk | Notes |
 |---|---|---|---|---|---|
 | 1 | **Combined portfolio:** SPY momentum + stocks in play, capital split between them | Diversification; both strategies already built | Low | Low (no new parameters beyond the split, fix it at 50/50) | Expect a smoother equity curve if the two are loosely correlated. Test once both have passed validate. |
-| 2 | **ORB opening-range length:** 1, 15, 30 minutes instead of 5 | Same paper tested 5/15/30/60; a QuantConnect user reported 1-minute did better | Low | Medium (sweep) | Needs minute data from 9:30, which we already download. Paper: 5-min best. |
-| 3 | **ORB VWAP trailing exit** instead of fixed stop + close | Zarattini's VWAP paper; Humbled Trader's VWAP rules | Low | Medium | Could hold winners longer. One new rule, no new parameters. |
-| 4 | **Volatility regime filter:** skip or halve size when prior 14-day volatility is low | Gao et al.: intraday momentum stronger on volatile days; SPY results weak in quiet 2016–17 | Low | **High**, easy to fit to the past | Decide the threshold from the tune period only, as a fixed percentile. |
-| 5 | **First half hour predicts last half hour** (Gao, Han, Li & Zhou, JFE 2018) | Peer-reviewed, replicated across ETFs and 16 countries | Low | Low (almost no parameters) | Small edge alone (~6% a year gross). Possibly more useful as a filter for #1. |
-| 6 | **Gap-and-go on S&P 500 gappers** (Humbled Trader's "Trend Join Long") | Practitioner setup, TradingView backtest only | Medium | Medium | A simpler, large-cap cousin of stocks in play. Long only, Robinhood-friendly. |
-| 7 | **Buy the dip on parabolic runners**: after a multi-day run and a breakout, buy the pullback to old resistance | Humbled Trader, "How to Grow a Small Account" (practitioner, no published results) | Medium | **High** (discretionary terms need numbers) | Contrarian to our breakout entry. Long only, Robinhood-friendly. Pre-registered below. |
-| 8 | **VWAP-band mean reversion**: fade moves past ±2 standard deviations back to VWAP | Practitioner technique; weak published evidence | Medium | High | Different kind of strategy that may earn on choppy days when momentum loses. |
-| 9 | **ORB on a wider universe** (top 50 / 100 by relative volume) | QuantConnect variations | Medium (more data) | Medium | Paper finds the edge concentrates in the top names; expect it to fade. |
+| 2 | **Technical-analysis filters on stocks in play:** 20-day SMA trend, 14-day RSI, MACD 12/26/9, Bollinger 20/2 | Humbled Trader's indicator set; textbook settings; Brock et al. (1992) for MA rules | Low | Medium (four trials, standard settings, no tuning) | Pre-registered below. Each tested alone against the baseline, right after baseline ORB results. |
+| 3 | **ORB opening-range length:** 1, 15, 30 minutes instead of 5 | Same paper tested 5/15/30/60; a QuantConnect user reported 1-minute did better | Low | Medium (sweep) | Needs minute data from 9:30, which we already download. Paper: 5-min best. |
+| 4 | **ORB VWAP trailing exit** instead of fixed stop + close | Zarattini's VWAP paper; Humbled Trader's VWAP rules | Low | Medium | Could hold winners longer. One new rule, no new parameters. |
+| 5 | **Volatility regime filter:** skip or halve size when prior 14-day volatility is low | Gao et al.: intraday momentum stronger on volatile days; SPY results weak in quiet 2016–17 | Low | **High**, easy to fit to the past | Decide the threshold from the tune period only, as a fixed percentile. |
+| 6 | **First half hour predicts last half hour** (Gao, Han, Li & Zhou, JFE 2018) | Peer-reviewed, replicated across ETFs and 16 countries | Low | Low (almost no parameters) | Small edge alone (~6% a year gross). Possibly more useful as a filter for #1. |
+| 7 | **Gap-and-go on S&P 500 gappers** (Humbled Trader's "Trend Join Long") | Practitioner setup, TradingView backtest only | Medium | Medium | A simpler, large-cap cousin of stocks in play. Long only, Robinhood-friendly. |
+| 8 | **Buy the dip on parabolic runners**: after a multi-day run and a breakout, buy the pullback to old resistance | Humbled Trader, "How to Grow a Small Account" (practitioner, no published results) | Medium | **High** (discretionary terms need numbers) | Contrarian to our breakout entry. Long only, Robinhood-friendly. Pre-registered below. |
+| 9 | **VWAP-band mean reversion**: fade moves past ±2 standard deviations back to VWAP | Practitioner technique; weak published evidence | Medium | High | Different kind of strategy that may earn on choppy days when momentum loses. |
+| 10 | **ORB on a wider universe** (top 50 / 100 by relative volume) | QuantConnect variations | Medium (more data) | Medium | Paper finds the edge concentrates in the top names; expect it to fade. |
 | — | **LLM news filter** on stocks in play | Lopez-Lira & Tang; memorization research | Medium | Can't backtest honestly | **Live only.** Log verdicts first; turn on only if vetoed trades measurably underperform. |
 
 ## Pre-registration template
@@ -58,6 +59,32 @@ Registered:        date
 ```
 
 ## Registered
+
+### Technical-analysis filters on stocks in play (queue #2)
+```
+Rule:               Baseline: the stocks-in-play ORB exactly as configured (config/orb.yaml).
+                    Add ONE filter at a time; a filtered-out stock's slot stays empty
+                    (sizing unchanged, so filters can only remove trades).
+                    All inputs are from prior days' daily bars, known before the open.
+                    F1 SMA trend:  long only if prior close > 20-day SMA; short only if below.
+                    F2 RSI:        long only if prior-day RSI(14) <= 80; short only if >= 20.
+                    F3 MACD:       long only if MACD(12,26) > signal(9) on prior close;
+                                   short only if below.
+                    F4 Bollinger:  skip if today's 9:30 open is outside the 20-day, 2-sigma
+                                   bands computed from prior closes.
+Why it should work: F1/F3 trade with the stock's own trend; F2/F4 avoid chasing moves that
+                    are already stretched and prone to reverse.
+Who loses:          Counter-trend breakout traders who get stopped out on fading moves.
+Defaults:           Standard textbook settings above, not tuned.
+Sweep (tune only):  None for the first pass. If a filter helps, one robustness check:
+                    F1 with 50-day SMA; F2 with 70/30 thresholds.
+Kill criteria:      A filter is dropped unless, on tune, it raises Sharpe by >= 0.2 without
+                    cutting trades below 100 or worsening max drawdown. Also reported:
+                    long-only results, since Robinhood may not allow shorting.
+Caveats:            Four filters = four more trials in the log; the deflated Sharpe counts them.
+                    If one wins, it must still pass validate before use.
+Registered:         2026-10-28
+```
 
 ### Buy the dip on parabolic runners (queue #7)
 ```
