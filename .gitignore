@@ -1,7 +1,7 @@
 # Market data is downloaded and cached, never committed
-data/
+/data/
 # Generated output (runs/ is kept: the trial log must survive between runs)
-reports/
+/reports/
 # Secrets
 .env
 *.key
