@@ -125,6 +125,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 90
 
+      - name: Publish report to the reports branch
+        if: success() && (inputs.command == 'backtest' || inputs.command == 'sweep')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin reports >/dev/null; then
+            git fetch -q origin reports && git worktree add -q -B reports /tmp/rb origin/reports
+          else
+            git worktree add -q --orphan -b reports /tmp/rb
+          fi
+          DIR="/tmp/rb/runs/$(date -u +%Y-%m-%d)_${{ github.run_id }}"
+          mkdir -p "$DIR"
+          cp reports/* "$DIR"/
+          cp reports/latest_summary.json /tmp/rb/latest_summary.json
+          cd /tmp/rb && git add -A && git commit -q -m "Report for run ${{ github.run_id }}" && git push -q origin reports
+
       - name: Commit trial log
         if: inputs.command == 'backtest' || inputs.command == 'sweep'
         run: |
