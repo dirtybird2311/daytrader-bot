@@ -252,3 +252,24 @@ pullback must touch the zone before the reversal bar; half the position sells at
 no slippage), the stop on the rest moves to the entry price; if a bar reaches both the stop
 and the target, the stop is assumed first. Minute data: up to 30 setups per day, largest by
 dollar volume first.
+
+### Improving SPY momentum, long-only (batch C)
+```
+Base:               config/spy_noise.yaml with allow_short false (tune Sharpe 1.08). Rules frozen;
+                    only the four changes below, each judged against that base on tune.
+C1 More indexes:    the same rules, same settings, on QQQ, IWM and DIA. Portfolio: capital split
+                    equally across SPY, QQQ, IWM, DIA sleeves at the start (no rebalancing).
+                    Kept if the portfolio's tune Sharpe >= 1.28 (base + 0.2) without a worse max
+                    drawdown. Each ETF is also reported alone.
+C2 Leveraged ETF:   SPY signals, trades executed in UPRO (3x S&P 500) at UPRO's own minute prices.
+                    UPRO notional = SPY target notional / 3, capped at 1x equity (cash account,
+                    no margin). Slippage $0.01/share (wider spreads). A realism change, not an
+                    edge: compared with SPY capped at 1x (C0) and with the 4x-margin base.
+C0 Cash account:    SPY base with max_leverage 1.0, the honest reference for a small account.
+C3 Robinhood costs: commission $0, slippage $0.005/share each side (half a 1-cent spread).
+                    Realism change; reported, not kept or killed.
+C4 Stop check:      trailing stop checked every minute instead of every 30 (the paper's text is
+                    ambiguous). One trial. Kept if tune Sharpe >= 1.28.
+Validate:           anything kept from C1/C4, once, on 2022-2023.
+Registered:         2026-10-29
+```
