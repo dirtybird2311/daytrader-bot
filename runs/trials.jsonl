@@ -29,3 +29,4 @@
 {"run_id": "20261028-185718-1f85ad", "time": "2026-10-28T18:57:18+00:00", "config_hash": "1f85ad55d8", "strategy": "spy_noise", "period": "validate", "label": "", "days": 501, "daily_sharpe": 0.10548756289884736}
 {"run_id": "20261029-062905-600565", "time": "2026-10-29T06:29:05+00:00", "config_hash": "6005651b1c", "strategy": "orb", "period": "tune", "label": "", "days": 1506, "daily_sharpe": -0.5961292815101351}
 {"run_id": "20261029-064149-600565", "time": "2026-10-29T06:41:49+00:00", "config_hash": "6005651b1c", "strategy": "orb", "period": "tune", "label": "", "days": 1506, "daily_sharpe": 0.07783956136595571}
+{"run_id": "20261029-065226-600565", "time": "2026-10-29T06:52:26+00:00", "config_hash": "6005651b1c", "strategy": "orb", "period": "tune", "label": "", "days": 1506, "daily_sharpe": 0.006994886012250477}
