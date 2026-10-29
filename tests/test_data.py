@@ -79,3 +79,11 @@ def test_asset_cleaning_and_tolerant_fetch():
 
     out = fetch_tolerant(Fake(), ["A", "B", "BAD", "C"], None, None, "1Day", log=lambda *_: None)
     assert sorted(out["symbol"]) == ["A", "B", "C"]
+
+
+def test_missing_first_minute_bar():
+    """Real data: some stocks have no 9:30 bar. The day must still load (opening price from first trade)."""
+    d = days_from_frame(alpaca_frame("2023-05-01", skip={0, 1}))[0]
+    assert d.n == 390
+    assert np.isfinite(d.close).all() and np.isfinite(d.open).all()
+    assert d.close[0] == d.open[2]  # filled flat from the first real bar's open

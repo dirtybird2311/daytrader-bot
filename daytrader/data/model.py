@@ -77,14 +77,14 @@ def days_from_frame(df: pd.DataFrame) -> list[Day]:
         length = SESSION_MINUTES if last >= SESSION_MINUTES - 10 else last + 1
         idx = np.arange(length)
         g = g.set_index("minute").reindex(idx)
-        close = g["c"].ffill().to_numpy(dtype=float)
+        close = np.array(g["c"].ffill().to_numpy(dtype=float), copy=True)  # pandas may hand back read-only views
         if np.isnan(close[0]):
             close[0] = float(g["o"].dropna().iloc[0])
-            close = pd.Series(close).ffill().to_numpy()
-        open_ = g["o"].to_numpy(dtype=float)
+            close = np.array(pd.Series(close).ffill().to_numpy(), copy=True)
+        open_ = np.array(g["o"].to_numpy(dtype=float), copy=True)
         open_ = np.where(np.isnan(open_), close, open_)
         high = np.where(np.isnan(g["h"].to_numpy(dtype=float)), close, g["h"].to_numpy(dtype=float))
         low = np.where(np.isnan(g["l"].to_numpy(dtype=float)), close, g["l"].to_numpy(dtype=float))
-        vol = np.nan_to_num(g["v"].to_numpy(dtype=float), nan=0.0)
+        vol = np.nan_to_num(np.array(g["v"].to_numpy(dtype=float), copy=True), nan=0.0)
         days.append(Day(date=date, open=open_, high=high, low=low, close=close, volume=vol))
     return days
