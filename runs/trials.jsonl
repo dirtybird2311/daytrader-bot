@@ -27,3 +27,4 @@
 {"run_id": "20261028-185236-s025-ad1bed", "time": "2026-10-28T18:52:36+00:00", "config_hash": "ad1bed12f5", "strategy": "spy_noise", "period": "tune", "label": "sweep", "days": 1511, "daily_sharpe": 0.05699558547665591}
 {"run_id": "20261028-185242-1f85ad", "time": "2026-10-28T18:52:42+00:00", "config_hash": "1f85ad55d8", "strategy": "spy_noise", "period": "tune", "label": "after-sweep", "days": 1511, "daily_sharpe": 0.06800761178739782}
 {"run_id": "20261028-185718-1f85ad", "time": "2026-10-28T18:57:18+00:00", "config_hash": "1f85ad55d8", "strategy": "spy_noise", "period": "validate", "label": "", "days": 501, "daily_sharpe": 0.10548756289884736}
+{"run_id": "20261029-062905-600565", "time": "2026-10-29T06:29:05+00:00", "config_hash": "6005651b1c", "strategy": "orb", "period": "tune", "label": "", "days": 1506, "daily_sharpe": -0.5961292815101351}
