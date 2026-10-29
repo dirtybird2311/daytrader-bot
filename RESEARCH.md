@@ -25,7 +25,7 @@ written down here **before** it is run, so the trial log can't be gamed after th
 |---|---|---|---|
 | SPY noise-area momentum, long-only | pass (Sharpe 1.08) | pass (Sharpe 1.67) | waiting (batch) |
 | SPY noise-area momentum, long + short | fail (Sharpe 0.93, DD 28%) | — | — |
-| Stocks-in-play ORB | data downloading | — | — |
+| Stocks-in-play ORB | tune: unresolved | Paper stop (0.1× ATR): Sharpe −9.46 if same-minute stops count, 1.24 if only close-confirmed ones do | Wide stops (1–2× ATR): Sharpe ~0.1 either way, no edge. Edge depends on intrabar order; needs tick data to settle |
 
 ## Ranked queue
 
