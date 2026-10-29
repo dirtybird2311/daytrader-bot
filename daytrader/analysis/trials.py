@@ -20,7 +20,7 @@ RUNS_DIR = Path("runs")
 
 
 def config_hash(cfg: dict) -> str:
-    keys = {k: cfg.get(k) for k in ("strategy", "symbol", "params", "sizing", "costs")}
+    keys = {k: cfg.get(k) for k in ("strategy", "symbol", "params", "sizing", "costs", "fills")}
     return hashlib.sha1(json.dumps(keys, sort_keys=True, default=str).encode()).hexdigest()[:10]
 
 
