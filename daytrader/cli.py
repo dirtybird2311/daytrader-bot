@@ -97,6 +97,12 @@ def cmd_download(args) -> None:
         client = AlpacaBars(requests_per_minute=args.rpm)
         status = sync_all(client, cfg, args.max_minutes)
         print(json.dumps(status, indent=2))
+        root = Path(cfg["data"]["cache_dir"]) / "universe"
+        counts = {k: len(list((root / k).glob("*.parquet"))) for k in ("daily", "opening", "minute")}
+        stages = ", ".join(k for k in ("assets", "daily", "opening", "features", "minute") if status.get(k))
+        line = (f"Stages done: {stages or 'none'} | files: daily {counts['daily']}, opening {counts['opening']} months, "
+                f"minute {counts['minute']} months | through {status.get('through')}")
+        print(f"::notice title=Download progress::{line}" if _on_github() else line)
         if not status["complete"]:
             msg = "Download stopped at its time budget; run it again to continue (cached progress is kept)."
             print(f"::warning title=Download incomplete::{msg}" if _on_github() else msg)
