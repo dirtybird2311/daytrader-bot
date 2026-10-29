@@ -1,0 +1,45 @@
+# Mean reversion to VWAP on SPY. Pre-registered in RESEARCH.md (queue #9).
+# Data shared with config/spy_noise.yaml.
+
+strategy: spy_vwap_revert
+symbol: SPY
+
+
+data:
+  start: "2015-01-01"    # 2015 is warm-up only (the volatility regime filter looks back a year)
+  end: null              # null = up to the latest completed day
+  cache_dir: data
+
+# Every trading day in the span is used; nothing is hand-picked.
+# Tune freely, validate to check, score the holdout once at the very end.
+periods:
+  tune: ["2016-01-01", "2021-12-31"]
+  validate: ["2022-01-01", "2023-12-31"]
+  holdout: ["2024-01-01", null]
+
+params:
+  entry_sd: 2.0            # enter beyond VWAP -/+ this many volume-weighted sds
+  stop_sd: 3.0             # stop beyond this many
+  first_check: "10:00"
+  last_entry: "15:30"
+  check_every_min: 5
+  max_entries: 3
+  allow_short: true
+
+sizing:
+  mode: vol_target         # vol_target | fixed
+  target_daily_vol: 0.02   # paper: 2%
+  max_leverage: 4.0        # paper: 4x. Live small accounts will use less.
+  vol_lookback_days: 14
+
+costs:
+  commission_per_share: 0.0035   # paper: IBKR $0.0035/share (conservative for Robinhood)
+  slippage_per_share: 0.001      # paper: $0.001/share
+  fill_delay_bars: 1             # decision on a bar's close fills at the next bar's open
+
+account:
+  starting_equity: 25000
+
+benchmark:
+  flat_band: 0.003         # SPY day within +/-0.3% counts as "flat"
+

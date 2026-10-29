@@ -36,6 +36,10 @@ class SpyNoiseArea(Strategy):
         self.target_vol = float(s["target_daily_vol"])
         self.max_lev = float(s["max_leverage"])
         self.vol_lookback = int(s["vol_lookback_days"])
+        # Optional volatility regime filter (research queue #5): sit out quiet days.
+        self.regime_pct = float(p.get("regime_pct", 0) or 0)
+        self.regime_window = int(p.get("regime_window", 252))
+        self.regime_min = int(p.get("regime_min_days", 60))
         self._ready = False
 
     # ---- set-up from completed days only -------------------------------------------------
@@ -57,9 +61,24 @@ class SpyNoiseArea(Strategy):
         closes = np.array([d.session_close for d in history.last(self.vol_lookback + 1)])
         rets = np.diff(closes) / closes[:-1]
         self._daily_vol = float(np.std(rets, ddof=1)) if len(rets) > 1 else float("nan")
+        if self.regime_pct > 0 and self.quiet_regime(history):
+            return False
         self._equity = equity
         self._pending_setup = True
         return True
+
+    def quiet_regime(self, history: History) -> bool:
+        """True when the latest 14-day realized vol ranks below `regime_pct` of its trailing
+        `regime_window` values. Completed days only; too little history means no filter."""
+        n = self.vol_lookback
+        closes = np.array([d.session_close for d in history.last(self.regime_window + n + 1)])
+        rets = np.diff(closes) / closes[:-1]
+        if len(rets) < n + self.regime_min:
+            return False
+        win = np.lib.stride_tricks.sliding_window_view(rets, n)
+        vols = win.std(axis=1, ddof=1)
+        current, past = vols[-1], vols[:-1][-self.regime_window:]
+        return bool((past < current).mean() * 100 < self.regime_pct)
 
     def _setup_open(self, today: TodayView) -> None:
         o = today.session_open

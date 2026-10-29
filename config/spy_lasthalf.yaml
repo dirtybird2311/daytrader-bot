@@ -1,0 +1,41 @@
+# First half hour predicts the last half hour (Gao, Han, Li & Zhou, JFE 2018), on SPY.
+# Pre-registered in RESEARCH.md (queue #6). Data shared with config/spy_noise.yaml.
+
+strategy: spy_lasthalf
+symbol: SPY
+
+
+data:
+  start: "2015-01-01"    # 2015 is warm-up only (the volatility regime filter looks back a year)
+  end: null              # null = up to the latest completed day
+  cache_dir: data
+
+# Every trading day in the span is used; nothing is hand-picked.
+# Tune freely, validate to check, score the holdout once at the very end.
+periods:
+  tune: ["2016-01-01", "2021-12-31"]
+  validate: ["2022-01-01", "2023-12-31"]
+  holdout: ["2024-01-01", null]
+
+params:
+  signal_time: "10:00"     # signal: prior close -> this time
+  entry_time: "15:30"      # trade from here to the close
+  allow_short: true
+
+sizing:
+  mode: vol_target         # vol_target | fixed
+  target_daily_vol: 0.02   # paper: 2%
+  max_leverage: 4.0        # paper: 4x. Live small accounts will use less.
+  vol_lookback_days: 14
+
+costs:
+  commission_per_share: 0.0035   # paper: IBKR $0.0035/share (conservative for Robinhood)
+  slippage_per_share: 0.001      # paper: $0.001/share
+  fill_delay_bars: 1             # decision on a bar's close fills at the next bar's open
+
+account:
+  starting_equity: 25000
+
+benchmark:
+  flat_band: 0.003         # SPY day within +/-0.3% counts as "flat"
+

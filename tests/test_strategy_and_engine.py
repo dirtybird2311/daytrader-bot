@@ -10,6 +10,13 @@ from daytrader.data.synthetic import make_days
 from daytrader.data.view import History, TodayView
 from daytrader.strategies import build_strategy
 from daytrader.strategies.spy_noise import SpyNoiseArea
+from tests.conftest import CONFIG
+from daytrader.config import load_config
+
+
+@pytest.fixture
+def cfg():
+    return load_config(CONFIG)  # these tests are about the SPY momentum strategy specifically
 
 
 def test_clock_mapping():

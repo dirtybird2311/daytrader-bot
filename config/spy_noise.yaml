@@ -6,7 +6,7 @@ strategy: spy_noise
 symbol: SPY
 
 data:
-  start: "2016-01-01"
+  start: "2015-01-01"    # 2015 is warm-up only (the volatility regime filter looks back a year)
   end: null              # null = up to the latest completed day
   cache_dir: data
 

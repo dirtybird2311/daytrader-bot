@@ -1,7 +1,9 @@
 from .base import Intent, Strategy
+from .spy_lasthalf import SpyLastHalfHour
 from .spy_noise import SpyNoiseArea
+from .spy_vwap_revert import SpyVwapRevert
 
-STRATEGIES = {"spy_noise": SpyNoiseArea}
+STRATEGIES = {"spy_noise": SpyNoiseArea, "spy_lasthalf": SpyLastHalfHour, "spy_vwap_revert": SpyVwapRevert}
 
 
 def build_strategy(cfg: dict) -> Strategy:

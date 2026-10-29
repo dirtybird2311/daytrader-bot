@@ -57,8 +57,9 @@ def test_poison_right_after_each_check(cfg):
     days = make_days(140, seed=5, momentum=0.03)
     clean = run(cfg, days)
     compared = 0
+    cuts = (360, 361) if cfg["strategy"] == "spy_lasthalf" else (30, 60, 180)
     for day_idx in range(40, 140, 7):
-        for minute in (30, 60, 180):  # one bar after the 10:00, 10:30 and 12:30 decisions
+        for minute in cuts:  # one bar after a decision bar (10:00, 10:30, 12:30; 15:30 for the last half hour)
             dirty = run(cfg, poison(days, day_idx, minute))
             cut = days[day_idx].date
             a, b = _before(clean, cut, minute), _before(dirty, cut, minute)
