@@ -1,0 +1,21 @@
+{
+  "run_id": "20261029-062905-600565",
+  "period": "tune",
+  "passed": false,
+  "synthetic": false,
+  "sharpe": -9.463,
+  "annual_return": -0.5172,
+  "max_drawdown": -0.9871,
+  "trades": 21829,
+  "checks": {
+    "Closed trades": true,
+    "Sharpe ratio, net of costs": false,
+    "Profit factor": false,
+    "Max drawdown": false,
+    "Beats SPY, risk-adjusted (Sharpe gap)": false,
+    "Sharpe with costs doubled": false,
+    "Positive trailing year": false,
+    "Neighbouring settings also profitable": null
+  },
+  "report": "reports/20261029-062905-600565_orb_tune.html"
+}
