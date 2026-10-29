@@ -119,3 +119,93 @@ Caveats:            Every number above is our translation of qualitative advice;
                     separate download pass is required.
 Registered:         2026-10-28
 ```
+
+### First half hour predicts last half hour on SPY (queue #6)
+```
+Rule:               Signal: SPY return from the prior close to 10:00 ET.
+                    At 15:30, if the signal is positive go long, if negative go short
+                    (long-only run: skip the shorts). Exit at the 16:00 close.
+                    Decision on the 15:30 price, fill at the next minute's open.
+                    Size: same vol-target sizing as the SPY momentum strategy (2% daily vol, 4x cap).
+Why it should work: Gao, Han, Li & Zhou (JFE 2018): informed traders and late-day hedging
+                    (index rebalancers, levered ETFs) trade in the direction of the morning move.
+Who loses:          Liquidity providers absorbing the closing imbalance.
+Defaults:           signal 16:00 prior close -> 10:00; trade 15:30 -> 16:00.
+Sweep (tune only):  None.
+Kill criteria:      Fails the scorecard on tune, or Sharpe < 0.5 with costs doubled.
+Registered:         2026-10-29
+```
+
+### VWAP-band mean reversion on SPY (queue #9)
+```
+Rule:               Bands = session VWAP +/- k x the volume-weighted standard deviation of the
+                    typical price around VWAP, both from 9:30 through the current minute.
+                    Checks every 5 minutes from 10:00 to 15:30:
+                      long if price < VWAP - 2 sd; short if price > VWAP + 2 sd.
+                    Exit (checked every minute, filled at the next open): price back to VWAP,
+                    or stop when price is beyond VWAP -/+ 3 sd. Anything open exits at the close.
+                    At most 3 entries a day. Same vol-target sizing as SPY momentum.
+Why it should work: On days with no news, large deviations from VWAP are liquidity shocks
+                    that fade as institutions benchmarked to VWAP trade against them.
+Who loses:          Impatient traders who push price away from fair value.
+Defaults:           entry_sd=2.0, stop_sd=3.0, check every 5 min, 10:00-15:30, max 3 entries.
+Sweep (tune only):  entry_sd in {1.5, 2.0, 2.5}; stop_sd in {3.0, 4.0}.
+Kill criteria:      Fails the scorecard on tune, or Sharpe < 0.5 with costs doubled.
+Caveat:             The opposite bet to SPY momentum; may only be useful as a diversifier.
+Registered:         2026-10-29
+```
+
+### Volatility regime filter on SPY momentum, long-only (queue #5)
+```
+Rule:               The frozen long-only SPY momentum strategy, plus: sit the day out when the
+                    prior 14-day realized volatility (std of daily close-to-close returns, known
+                    before the open) is below the p-th percentile of its own trailing 252-day
+                    history. A rolling percentile, so no threshold is fit to the whole tune period.
+Why it should work: Gao et al. and Zarattini et al. find intraday momentum stronger when
+                    volatility is high; quiet days are mostly whipsaws plus costs.
+Who loses:          Same as the base strategy.
+Defaults:           p = 25.
+Sweep (tune only):  p in {10, 25, 40}.
+Kill criteria:      Dropped unless tune Sharpe rises by >= 0.2 over the unfiltered 1.08 without
+                    a worse max drawdown. High overfitting risk: counts as 3 more trials.
+Registered:         2026-10-29
+```
+
+### Stocks-in-play: opening-range length (queue #3)
+```
+Rule:               Baseline ORB with the opening range set to the first 1, 5, 15 or 30 minutes.
+                    Selection always happens at 9:35 by 5-minute relative volume (the only
+                    opening volume we have for every stock; the paper measured it over the range).
+                    For the 1-minute range the levels come from the 9:30 bar but orders can only
+                    be placed from 9:35, when the stock is first known to be in play.
+                    Direction comes from the range's own open-to-close; doji skipped.
+Defaults:           or_minutes in {1, 5, 15, 30}; everything else as config/orb.yaml.
+Kill criteria:      Kept only if a length beats 5 minutes by Sharpe >= 0.2 under every
+                    fill rule we can trust (tick-resolved if available, else both bounds).
+Registered:         2026-10-29
+```
+
+### Stocks-in-play: VWAP exit (queue #4)
+```
+Rule:               Baseline ORB, but after entry, exit at the next minute's open once a 1-minute
+                    bar closes on the wrong side of the session VWAP (below for longs, above for
+                    shorts). The ATR stop stays as protection; the close exit stays as a backstop.
+Defaults:           stop_atr in {0.1, 0.5, 1.0} (the VWAP exit may make a wider stop workable).
+Kill criteria:      Fails the scorecard on tune under both fill bounds, or no better than the
+                    same stop without the VWAP exit by Sharpe >= 0.2.
+Registered:         2026-10-29
+```
+
+### Tick-data check for ambiguous entry minutes
+```
+Rule:               For each trade where minute bars can't tell whether the stop was hit after
+                    the entry (entry mid-bar and the bar's range reaches the stop), download that
+                    symbol's trades for that one minute from Alpaca (SIP feed).
+                    Using round-lot prints (100+ shares) in time order: entry = first print at or
+                    through the level (fill at that print, plus slippage); stopped in that minute
+                    if any later print is at or through the stop (fill at the stop or that print,
+                    whichever is worse). Minutes without tick data fall back to "pessimistic".
+Why:                Replaces the assumption with what happened. Not a new strategy; the
+                    tick-resolved run becomes the ORB baseline that every ORB variant is judged on.
+Registered:         2026-10-29
+```
