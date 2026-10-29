@@ -209,3 +209,33 @@ Why:                Replaces the assumption with what happened. Not a new strate
                     tick-resolved run becomes the ORB baseline that every ORB variant is judged on.
 Registered:         2026-10-29
 ```
+
+### Gap-and-go on large-cap gappers (queue #7)
+```
+Rule:               Universe each morning: the 500 largest stocks by 14-day average dollar volume
+                    (prior days only; delisted names included), opening above $10.
+                    Setup: gap up of 2% to 10% (9:30 open vs prior close).
+                    Rank gappers by 5-minute relative volume; trade the top 5.
+                    Entry: buy-stop at the high of the first 5-minute bar, live 9:35 to 10:30.
+                    Stop: the low of the first 5-minute bar. Exit at the close.
+                    Size: each of 5 slots gets equity/5; a stop-out loses 1% of the slot;
+                    notional capped at 1x the slot (no margin, Robinhood-friendly). Long only.
+                    Same fill rules as stocks in play (fills.same_bar_stop, ticks where available).
+Why it should work: Large caps that gap on news and push through the opening high are seeing
+                    institutional demand that takes more than one morning to fill.
+Who loses:          Shorts fading the gap and holders selling into strength too early.
+Defaults:           min_gap 0.02, max_gap 0.10, large_cap_rank 500, top_n 5, last_entry 10:30.
+Sweep (tune only):  min_gap in {0.01, 0.02, 0.03}; last_entry in {10:00, 10:30, 11:30}.
+Kill criteria:      Fails the scorecard on tune, fewer than 100 trades, or Sharpe < 0.5 at 2x costs.
+Data:               Needs minute bars for gappers outside the top-30 relative-volume list:
+                    an extra download of up to 15 large-cap gap-ups per day.
+Registered:         2026-10-29
+```
+
+Buy-the-dip implementation notes (fixed before coding, filling gaps in the registration
+above): "max 5 positions" = the first 5 setups to trigger each day, each with notional capped
+at equity/5 (1x overall); the 5-minute bars are built from 1-minute bars starting 9:30; the
+pullback must touch the zone before the reversal bar; half the position sells at 2R (limit,
+no slippage), the stop on the rest moves to the entry price; if a bar reaches both the stop
+and the target, the stop is assumed first. Minute data: up to 30 setups per day, largest by
+dollar volume first.
