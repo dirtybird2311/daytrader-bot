@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from .model import SESSION_MINUTES, Day, days_from_frame
+from .ta import ta_table
 from .universe import build_features
 
 
@@ -30,6 +31,21 @@ class OrbData:
 
     def market(self, date: dt.date) -> tuple[float, float]:
         raise NotImplementedError
+
+    def daily_frame(self) -> pd.DataFrame:
+        """symbol, date, o, c for every candidate symbol (only for the technical filters)."""
+        raise NotImplementedError
+
+    def ta_features(self, date: dt.date, sma_days: int = 20) -> pd.DataFrame:
+        cache = self.__dict__.setdefault("_ta_cache", {})
+        if sma_days not in cache:
+            t = ta_table(self.daily_frame(), sma_days=sma_days)
+            cache[sma_days] = {d: g.set_index("symbol") for d, g in t.groupby("date")}
+        return cache[sma_days].get(date, pd.DataFrame())
+
+    def tick_prices(self, date: dt.date, symbol: str, bar: int) -> np.ndarray | None:
+        """Round-lot trade prices, in time order, inside one minute (see data/ticks.py)."""
+        return None
 
 
 class CachedOrbData(OrbData):
@@ -58,6 +74,22 @@ class CachedOrbData(OrbData):
         spy["ret"] = spy["c"] / spy["c"].shift(1) - 1
         spy["oc"] = spy["c"] / spy["o"] - 1
         return spy
+
+    def daily_frame(self) -> pd.DataFrame:
+        syms = sorted({str(x) for x in pd.concat(self._features.values())["symbol"].unique()} | {"SPY"})
+        frames = []
+        for f in sorted((self.root / "daily").glob("*.parquet")):
+            df = pd.read_parquet(f, columns=["symbol", "t", "o", "c"], filters=[("symbol", "in", syms)])
+            frames.append(df)
+        d = pd.concat(frames, ignore_index=True)
+        d["date"] = pd.to_datetime(d["t"], utc=True).dt.tz_convert("America/New_York").dt.date
+        return d.drop(columns="t").drop_duplicates(["symbol", "date"], keep="last")
+
+    def tick_prices(self, date: dt.date, symbol: str, bar: int) -> np.ndarray | None:
+        from .ticks import TickStore
+        if not hasattr(self, "_ticks"):
+            self._ticks = TickStore(self.root / "ticks")
+        return self._ticks.get(date, symbol, bar)
 
     def has_minutes(self, date: dt.date) -> bool:
         return f"{date:%Y-%m}" in self._minute_months
@@ -159,6 +191,9 @@ class SyntheticOrbData(OrbData):
         i = self.symbols.index(symbol)
         o, h, l, c, v = (a[i].copy() for a in self._cache)
         return Day(date=date, open=o, high=h, low=l, close=c, volume=v)
+
+    def daily_frame(self) -> pd.DataFrame:
+        return self.daily[["symbol", "date", "o", "c"]]
 
     def market(self, date: dt.date) -> tuple[float, float]:
         r = self._mkt[date]

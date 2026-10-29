@@ -1,0 +1,47 @@
+# Research batch A: everything testable with the data already downloaded.
+# Each entry is pre-registered in RESEARCH.md. Tune period only; survivors get one validate run.
+name: phase_a
+experiments:
+  # ---- SPY: first half hour predicts the last half hour (queue #6) ----
+  - name: lasthalf
+    config: config/spy_lasthalf.yaml
+  - name: lasthalf_long_only
+    config: config/spy_lasthalf.yaml
+    set: {params.allow_short: false}
+
+  # ---- SPY: VWAP-band mean reversion (queue #9) ----
+  - name: vwap_revert
+    config: config/spy_vwap_revert.yaml
+    grid:
+      params.entry_sd: [1.5, 2.0, 2.5]
+      params.stop_sd: [3.0, 4.0]
+  - name: vwap_revert_long_only
+    config: config/spy_vwap_revert.yaml
+    set: {params.allow_short: false}
+
+  # ---- SPY momentum, long-only, with the volatility regime filter (queue #5) ----
+  - name: noise_long_regime
+    config: config/spy_noise.yaml
+    set: {params.allow_short: false}
+    grid:
+      params.regime_pct: [10, 25, 40]
+
+  # ---- Stocks in play: each variant under both bounds of the same-minute fill rule ----
+  - name: orb_or_length
+    config: config/orb.yaml
+    grid:
+      params.or_minutes: [1, 15, 30]
+      fills.same_bar_stop: [pessimistic, close_confirmed]
+  - name: orb_vwap_exit
+    config: config/orb.yaml
+    set: {params.exit_mode: vwap}
+    grid:
+      params.stop_atr: [0.1, 0.5, 1.0]
+      fills.same_bar_stop: [pessimistic, close_confirmed]
+  - name: orb_ta
+    config: config/orb.yaml
+    grid:
+      params.ta_filter: [sma, rsi, macd, bollinger]
+      fills.same_bar_stop: [pessimistic, close_confirmed]
+# The tick download takes its minute list from these runs (orb_vwap_exit at 0.1 ATR enters
+# exactly where the baseline does, so the baseline's ambiguous minutes are covered).

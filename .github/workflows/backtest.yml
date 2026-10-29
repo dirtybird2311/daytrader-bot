@@ -7,12 +7,12 @@ on:
       strategy:
         description: Strategy
         type: choice
-        options: [spy_noise, orb]
+        options: [spy_noise, spy_lasthalf, spy_vwap_revert, orb]
         default: spy_noise
       command:
         description: What to run
         type: choice
-        options: [backtest, sweep, download-only, synthetic-check]
+        options: [backtest, sweep, research, ticks, download-only, synthetic-check]
         default: backtest
       period:
         description: Period to score (sweeps always use tune)
@@ -35,6 +35,10 @@ on:
         description: Extra flags, e.g. --set costs.slippage_per_share=0.002
         type: string
         default: ""
+      experiments:
+        description: Research batch file (research only)
+        type: string
+        default: config/experiments/phase_a.yaml
 
 permissions:
   contents: write   # to commit the trial log in runs/
@@ -65,27 +69,51 @@ jobs:
       - name: Tests (lookahead checks must pass before any result is trusted)
         run: pytest -q
 
-      - name: Restore market data cache
-        if: inputs.command != 'synthetic-check'
+      # Two caches: SPY minute bars (small, data/bars) and the stocks-in-play universe (large, data/).
+      - name: Restore SPY bars cache
+        if: inputs.command != 'synthetic-check' && (startsWith(inputs.strategy, 'spy') || inputs.command == 'research')
+        uses: actions/cache/restore@v4
+        with:
+          path: data/bars
+          key: spybars-${{ github.run_id }}
+          restore-keys: spybars-
+
+      - name: Restore stocks-in-play cache
+        if: inputs.command != 'synthetic-check' && (inputs.strategy == 'orb' || inputs.command == 'research' || inputs.command == 'ticks')
         uses: actions/cache/restore@v4
         with:
           path: data
-          key: data-${{ inputs.strategy }}-${{ github.run_id }}
-          restore-keys: |
-            data-${{ inputs.strategy }}-
-            ${{ inputs.strategy == 'spy_noise' && 'bars-' || 'none-' }}
+          key: data-orb-${{ github.run_id }}
+          restore-keys: data-orb-
 
-      - name: Download new data from Alpaca
-        if: inputs.command != 'synthetic-check'
+      - name: Download new SPY data from Alpaca
+        if: inputs.command != 'synthetic-check' && inputs.command != 'ticks' && (startsWith(inputs.strategy, 'spy') || inputs.command == 'research')
+        run: python -m daytrader download --config config/spy_noise.yaml
+
+      - name: Download new stocks-in-play data from Alpaca
         # The stocks-in-play download is large; it stops cleanly at its budget and resumes next run.
-        run: python -m daytrader download --config "$CONFIG" --max-minutes 300
+        if: inputs.strategy == 'orb' && contains(fromJSON('["backtest","sweep","download-only"]'), inputs.command)
+        run: python -m daytrader download --config config/orb.yaml --max-minutes 300
 
-      - name: Save market data cache (even after a partial download)
-        if: always() && inputs.command != 'synthetic-check'
+      - name: Download tick data for ambiguous entry minutes
+        if: inputs.command == 'ticks'
+        env:
+          EXTRA: ${{ inputs.extra_args }}
+        run: python -m daytrader ticks --config config/orb.yaml --max-minutes 300 $EXTRA
+
+      - name: Save SPY bars cache
+        if: always() && inputs.command != 'synthetic-check' && (startsWith(inputs.strategy, 'spy') || inputs.command == 'research') && inputs.command != 'ticks'
+        uses: actions/cache/save@v4
+        with:
+          path: data/bars
+          key: spybars-${{ github.run_id }}
+
+      - name: Save stocks-in-play cache (even after a partial download)
+        if: always() && ((inputs.strategy == 'orb' && contains(fromJSON('["backtest","sweep","download-only"]'), inputs.command)) || inputs.command == 'ticks')
         uses: actions/cache/save@v4
         with:
           path: data
-          key: data-${{ inputs.strategy }}-${{ github.run_id }}
+          key: data-orb-${{ github.run_id }}
 
       - name: Synthetic check
         if: inputs.command == 'synthetic-check'
@@ -123,6 +151,13 @@ jobs:
           python -m daytrader sweep --config "$CONFIG" --period tune $GRID $FLAGS
           python -m daytrader backtest --config "$CONFIG" --period tune --label after-sweep $FLAGS
 
+      - name: Research batch
+        if: inputs.command == 'research'
+        env:
+          FILE: ${{ inputs.experiments }}
+          EXTRA: ${{ inputs.extra_args }}
+        run: python -m daytrader research --file "$FILE" --max-minutes 320 $EXTRA
+
       - name: Summary and email
         if: inputs.command == 'backtest' || inputs.command == 'sweep' || inputs.command == 'synthetic-check'
         env:
@@ -141,7 +176,7 @@ jobs:
           retention-days: 90
 
       - name: Publish report to the reports branch
-        if: success() && (inputs.command == 'backtest' || inputs.command == 'sweep')
+        if: always() && contains(fromJSON('["backtest","sweep","research"]'), inputs.command)
         run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"
@@ -153,11 +188,11 @@ jobs:
           DIR="/tmp/rb/runs/$(date -u +%Y-%m-%d)_${{ github.run_id }}"
           mkdir -p "$DIR"
           cp reports/* "$DIR"/
-          cp reports/latest_summary.json /tmp/rb/latest_summary.json
+          if [ -f reports/latest_summary.json ]; then cp reports/latest_summary.json /tmp/rb/latest_summary.json; fi
           cd /tmp/rb && git add -A && git commit -q -m "Report for run ${{ github.run_id }}" && git push -q origin reports
 
       - name: Commit trial log
-        if: inputs.command == 'backtest' || inputs.command == 'sweep'
+        if: always() && contains(fromJSON('["backtest","sweep","research"]'), inputs.command)
         run: |
           git config user.name "Claude"
           git config user.email "noreply@anthropic.com"

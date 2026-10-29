@@ -59,8 +59,10 @@ class Runner:
                 if missing:
                     sys.exit(f"Minute data is missing for {len(missing)} days ({missing[0]} to {missing[-1]}). "
                              "Run the download again; it resumes where it stopped.")
-            return OrbEngine(cfg).run(self.data, start, end)
-        return Engine(cfg, build_strategy(cfg)).run(self.days, start, end)
+            self.last_engine = OrbEngine(cfg)
+            return self.last_engine.run(self.data, start, end)
+        self.last_engine = Engine(cfg, build_strategy(cfg))
+        return self.last_engine.run(self.days, start, end)
 
     def day_lookup(self, date, symbol=None):
         if self.kind == "orb":
@@ -209,6 +211,21 @@ def main(argv=None) -> None:
         else:
             p.add_argument("--grid", action="append", required=True, help="param=v1,v2,...")
         p.set_defaults(func=fn)
+
+    from .research import cmd_research, cmd_ticks
+    r = sub.add_parser("research", help="run a batch of pre-registered experiments")
+    r.add_argument("--file", required=True)
+    r.add_argument("--synthetic", action="store_true")
+    r.add_argument("--force", action="store_true", help="re-run experiments already in the results table")
+    r.add_argument("--max-minutes", type=float, default=320)
+    r.add_argument("--out", default="reports")
+    r.set_defaults(func=cmd_research)
+    t = sub.add_parser("ticks", help="download trades for the ambiguous stocks-in-play entry minutes")
+    t.add_argument("--config", required=True)
+    t.add_argument("--period", default="", help="only minutes saved from runs on this period (e.g. tune)")
+    t.add_argument("--rpm", type=int, default=120)
+    t.add_argument("--max-minutes", type=float, default=300)
+    t.set_defaults(func=cmd_ticks)
 
     args = ap.parse_args(argv)
     try:
