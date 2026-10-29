@@ -82,7 +82,11 @@ class CachedOrbData(OrbData):
         syms = sorted({str(x) for x in pd.concat(self._features.values())["symbol"].unique()} | {"SPY"})
         frames = []
         for f in sorted((self.root / "daily").glob("*.parquet")):
-            df = pd.read_parquet(f, columns=["symbol", "t", "o", "h", "l", "c", "v"], filters=[("symbol", "in", syms)])
+            df = pd.read_parquet(f, columns=["symbol", "t", "o", "h", "l", "c", "v"])
+            if df.empty:
+                continue  # an empty file can carry null-typed columns; nothing to read
+            df["symbol"] = df["symbol"].astype(str)
+            df = df[df["symbol"].isin(syms)]
             frames.append(df)
         d = pd.concat(frames, ignore_index=True)
         d["date"] = pd.to_datetime(d["t"], utc=True).dt.tz_convert("America/New_York").dt.date
