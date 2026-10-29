@@ -21,11 +21,24 @@ written down here **before** it is run, so the trial log can't be gamed after th
 
 ## Status
 
+All tune results are 2016–2021, net of costs. "Best" = best setting in its pre-registered sweep.
+
 | Strategy | Tune | Validate | Holdout |
 |---|---|---|---|
-| SPY noise-area momentum, long-only | pass (Sharpe 1.08) | pass (Sharpe 1.67) | waiting (batch) |
+| SPY noise-area momentum, long-only | **pass (Sharpe 1.08)** | **pass (Sharpe 1.67)** | waiting (batch) |
 | SPY noise-area momentum, long + short | fail (Sharpe 0.93, DD 28%) | — | — |
-| Stocks-in-play ORB | tune: unresolved | Paper stop (0.1× ATR): Sharpe −9.46 if same-minute stops count, 1.24 if only close-confirmed ones do | Wide stops (1–2× ATR): Sharpe ~0.1 either way, no edge. Edge depends on intrabar order; needs tick data to settle |
+| SPY momentum + volatility regime filter (#5) | dropped: Sharpe 1.05 / 0.87 / 0.75 at p = 10 / 25 / 40, below the unfiltered 1.08 | — | — |
+| SPY first half hour → last half hour (#6) | fail: Sharpe −1.14 (long-only −1.33) | — | — |
+| SPY VWAP-band reversion (#9) | fail: best −0.28 (2.5 / 4.0 sd); long-only −0.02 | — | — |
+| Stocks-in-play ORB, tick-resolved | **fail: Sharpe −2.77**, −28%/yr (long-only −1.84). Bar-only bounds were −9.46 / +1.24 | — | — |
+| ORB opening range 1 / 15 / 30 min (#3), ticks | fail: −1.11 / −2.60 / −3.15 | — | — |
+| ORB VWAP exit (#4), ticks | fail: −3.23 / −0.89 / −0.80 at stop 0.1 / 0.5 / 1.0 ATR | — | — |
+| ORB + TA filters (#2), ticks | fail: SMA −1.45, RSI −2.80, MACD −1.85, Bollinger −1.88 | — | — |
+| Gap-and-go on large caps (#7) | fail: all 9 settings positive (0.28–0.62) but none clears Sharpe 1.0; ~0 with costs doubled | — | — |
+| Buy the dip on parabolic runners (#8) | fail: 3-day runs −0.42 to −0.63; 4–5-day runs too rare (4–106 trades) | — | — |
+
+Batches: `runs/research/phase_a.csv` (bar-based bounds) and `runs/research/phase_b.csv` (tick-resolved
+and the new strategies). Ticks: 24,529 ambiguous entry minutes downloaded; ~94% resolved from prints.
 
 ## Ranked queue
 
