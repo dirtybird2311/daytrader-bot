@@ -7,6 +7,11 @@ For every day:
      open, worsened by slippage. Never at the price used to decide.
   4. Anything still open is closed at the final bar's close (market-on-close).
 Commissions and slippage are charged on every share, both sides.
+
+Optional `execution` config (research batch C2): decide on one symbol's bars (e.g. SPY) but
+trade another (e.g. UPRO, 3x SPY) at that symbol's own minute prices. The position's notional
+is the signal's notional / multiplier, capped at max_leverage x equity. Days where the traded
+symbol's session doesn't line up with the signal's are sat out.
 """
 
 from __future__ import annotations
@@ -80,8 +85,14 @@ class Engine:
         self.slippage = float(c["slippage_per_share"])
         self.delay = int(c["fill_delay_bars"])
         self.flat_band = float(cfg.get("benchmark", {}).get("flat_band", 0.003))
+        ex = cfg.get("execution") or {}
+        self.exec_symbol = ex.get("symbol")
+        self.exec_mult = float(ex.get("multiplier", 1.0))
+        self.exec_max_lev = float(ex.get("max_leverage", 1.0))
+        self.exec_skipped = 0
 
-    def run(self, days: list[Day], start: dt.date | None = None, end: dt.date | None = None) -> BacktestResult:
+    def run(self, days: list[Day], start: dt.date | None = None, end: dt.date | None = None,
+            exec_days: dict | None = None) -> BacktestResult:
         equity = float(self.cfg["account"]["starting_equity"])
         daily_rows, trades, decisions = [], [], []
 
@@ -92,6 +103,14 @@ class Engine:
             equity_start = equity
             today = TodayView(day)
             active = self.strategy.on_day_start(history, equity)
+            self._ex = None
+            if self.exec_symbol:
+                self._ex = (exec_days or {}).get(day.date)
+                if self._ex is None or self._ex.n != day.n:
+                    if active:
+                        self.exec_skipped += 1
+                    active, self._ex = False, None
+            self._equity_start = equity_start
 
             position, shares, open_trade = 0, 0, None
             pending: list[tuple[int, Intent, int]] = []  # (fill_bar, intent, decided_bar)
@@ -103,10 +122,11 @@ class Engine:
                 for fill_bar, intent, decided in [p for p in pending if p[0] == i]:
                     pending.remove((fill_bar, intent, decided))
                     position, shares, open_trade = self._fill(day, i, intent, position, shares, open_trade, day_trades)
-                # 2) track excursion of the open trade
+                # 2) track excursion of the open trade (in the traded symbol's prices)
                 if open_trade is not None:
-                    open_trade.hi = max(open_trade.hi, day.high[i])
-                    open_trade.lo = min(open_trade.lo, day.low[i])
+                    px_day = self._ex if self._ex is not None else day
+                    open_trade.hi = max(open_trade.hi, px_day.high[i])
+                    open_trade.lo = min(open_trade.lo, px_day.low[i])
                 # 3) strategy decides on this bar's close
                 if not active:
                     continue
@@ -123,7 +143,8 @@ class Engine:
             # 4) market-on-close for anything still open
             if position != 0 and open_trade is not None:
                 last = day.n - 1
-                px = day.close[last] - np.sign(position) * self.slippage
+                px_day = self._ex if self._ex is not None else day
+                px = px_day.close[last] - np.sign(position) * self.slippage
                 self._close(open_trade, last, px, "close", shares)
                 position, shares, open_trade = 0, 0, None
 
@@ -139,7 +160,12 @@ class Engine:
     # ---- fills ------------------------------------------------------------------------------
     def _fill(self, day: Day, i: int, intent: Intent, position: int, shares: int,
               open_trade: Trade | None, day_trades: list[Trade]):
-        raw = float(day.open[i])
+        px_day = self._ex if self._ex is not None else day
+        raw = float(px_day.open[i])
+        if self._ex is not None and intent.target != 0 and intent.shares > 0:
+            signal_notional = intent.shares * float(day.open[0])  # what the strategy sized for
+            notional = min(signal_notional / self.exec_mult, self._equity_start * self.exec_max_lev)
+            intent = Intent(intent.target, int(notional / raw), intent.reason, None, intent.info)
         if position != 0 and open_trade is not None:
             px = raw - np.sign(position) * self.slippage  # selling a long fills lower, covering a short higher
             self._close(open_trade, i, px, intent.reason, shares)
@@ -149,7 +175,7 @@ class Engine:
             open_trade = Trade(date=day.date, side=intent.target, shares=int(intent.shares), entry_bar=i,
                                entry_time=minute_to_clock(i - 1), entry_px=px, entry_reason=intent.reason,
                                stop_at_entry=float(intent.stop) if intent.stop is not None else float("nan"),
-                               costs=self.commission * intent.shares, hi=float(day.high[i]), lo=float(day.low[i]))
+                               costs=self.commission * intent.shares, hi=float(px_day.high[i]), lo=float(px_day.low[i]))
             day_trades.append(open_trade)
             position, shares = intent.target, int(intent.shares)
         return position, shares, open_trade

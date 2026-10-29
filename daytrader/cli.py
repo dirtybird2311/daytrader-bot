@@ -67,7 +67,24 @@ class Runner:
             self.last_engine = DipEngine(cfg) if cfg["strategy"] == "dip" else OrbEngine(cfg)
             return self.last_engine.run(self.data, start, end)
         self.last_engine = Engine(cfg, build_strategy(cfg))
-        return self.last_engine.run(self.days, start, end)
+        return self.last_engine.run(self.days, start, end, exec_days=self.exec_days(cfg))
+
+    def exec_days(self, cfg: dict) -> dict | None:
+        """Bars of the symbol actually traded, when it differs from the signal symbol (cfg.execution)."""
+        ex = cfg.get("execution") or {}
+        sym = ex.get("symbol")
+        if not sym:
+            return None
+        cache = self.__dict__.setdefault("_exec_cache", {})
+        if sym not in cache:
+            if self.synthetic:
+                from .data.synthetic import leveraged_days
+                cache[sym] = leveraged_days(self.days, float(ex.get("multiplier", 3.0)))
+            else:
+                from .data.store import load_days
+                start = dt.date.fromisoformat(str(cfg["data"]["start"]))
+                cache[sym] = {d.date: d for d in load_days(sym, start, None, cfg["data"]["cache_dir"])}
+        return cache[sym]
 
     def day_lookup(self, date, symbol=None):
         if self.kind in UNIVERSE_STRATEGIES:
@@ -119,9 +136,11 @@ def cmd_download(args) -> None:
     start = (start.replace(day=1) - dt.timedelta(days=45)).replace(day=1)
     end = dt.date.today()
     client = AlpacaBars(requests_per_minute=args.rpm)
-    print(f"Syncing {cfg['symbol']} {start} to {end} into {cfg['data']['cache_dir']}/")
-    n = sync_symbol(client, cfg["symbol"], start, end, cfg["data"]["cache_dir"])
-    print(f"Done: {n} month file(s) downloaded or refreshed.")
+    symbols = [x.strip() for x in args.symbols.split(",") if x.strip()] if args.symbols else [cfg["symbol"]]
+    for sym in symbols:
+        print(f"Syncing {sym} {start} to {end} into {cfg['data']['cache_dir']}/")
+        n = sync_symbol(client, sym, start, end, cfg["data"]["cache_dir"])
+        print(f"Done: {n} month file(s) downloaded or refreshed.")
 
 
 def cmd_backtest(args) -> None:
@@ -200,6 +219,7 @@ def main(argv=None) -> None:
     d.add_argument("--config", required=True)
     d.add_argument("--rpm", type=int, default=120, help="requests per minute (Alpaca free plan allows 200, shared per login)")
     d.add_argument("--max-minutes", type=float, default=300, help="stop cleanly after this long (resumable)")
+    d.add_argument("--symbols", default="", help="single-symbol strategies: comma-separated symbols to sync")
     d.set_defaults(func=cmd_download)
 
     for name, fn in (("backtest", cmd_backtest), ("sweep", cmd_sweep)):

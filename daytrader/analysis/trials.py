@@ -21,6 +21,8 @@ RUNS_DIR = Path("runs")
 
 def config_hash(cfg: dict) -> str:
     keys = {k: cfg.get(k) for k in ("strategy", "symbol", "params", "sizing", "costs", "fills")}
+    if cfg.get("execution"):
+        keys["execution"] = cfg["execution"]  # only when set, so older hashes stay the same
     return hashlib.sha1(json.dumps(keys, sort_keys=True, default=str).encode()).hexdigest()[:10]
 
 

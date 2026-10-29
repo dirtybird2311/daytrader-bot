@@ -1,0 +1,41 @@
+# Batch C: improving SPY momentum, long-only. Pre-registered in RESEARCH.md.
+name: batch_c
+experiments:
+  - name: base_spy_long
+    config: config/spy_noise.yaml
+    set: {params.allow_short: false}
+  - name: c0_spy_cash_1x
+    config: config/spy_noise.yaml
+    set: {params.allow_short: false, sizing.max_leverage: 1.0}
+  # C1: same rules on other index ETFs, alone and as one equal-split account
+  - name: c1_qqq
+    config: config/spy_noise.yaml
+    set: {params.allow_short: false, symbol: QQQ}
+  - name: c1_iwm
+    config: config/spy_noise.yaml
+    set: {params.allow_short: false, symbol: IWM}
+  - name: c1_dia
+    config: config/spy_noise.yaml
+    set: {params.allow_short: false, symbol: DIA}
+  - name: c1_portfolio_4
+    set: {params.allow_short: false}
+    portfolio:
+      - {config: config/spy_noise.yaml}
+      - {config: config/spy_noise.yaml, set: {symbol: QQQ}}
+      - {config: config/spy_noise.yaml, set: {symbol: IWM}}
+      - {config: config/spy_noise.yaml, set: {symbol: DIA}}
+  # C2: SPY signals, traded in UPRO (3x) with no margin
+  - name: c2_upro_cash
+    config: config/spy_noise.yaml
+    set:
+      params.allow_short: false
+      costs.slippage_per_share: 0.01
+      execution: {symbol: UPRO, multiplier: 3, max_leverage: 1.0}
+  # C3: Robinhood costs
+  - name: c3_robinhood_costs
+    config: config/spy_noise.yaml
+    set: {params.allow_short: false, costs.commission_per_share: 0.0, costs.slippage_per_share: 0.005}
+  # C4: trailing stop checked every minute
+  - name: c4_stop_every_minute
+    config: config/spy_noise.yaml
+    set: {params.allow_short: false, params.stop_check: every_minute}

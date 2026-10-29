@@ -93,6 +93,76 @@ def _summary_row(name, cfg, period, a, res, report, engine) -> dict:
     return row
 
 
+def combine(results: list, symbols: list[str], cfg0: dict):
+    """One account split across sleeves: daily equity is the sum of the sleeves' equity."""
+    from .backtest.engine import BacktestResult
+
+    dailies = [r.daily for r in results]
+    idx = dailies[0].index
+    for d in dailies[1:]:
+        idx = idx.intersection(d.index)
+    eq0 = sum(d.loc[idx, "equity_start"] for d in dailies)
+    eq1 = sum(d.loc[idx, "equity"] for d in dailies)
+    first = dailies[0].loc[idx]
+    daily = pd.DataFrame({
+        "equity_start": eq0, "equity": eq1, "ret": eq1 / eq0 - 1.0,
+        "n_trades": sum(d.loc[idx, "n_trades"] for d in dailies),
+        "market_ret": first["market_ret"], "market_oc_ret": first["market_oc_ret"],
+        "market_day": first["market_day"], "leverage": float("nan"), "weekday": first["weekday"],
+    }, index=idx)
+    trades = []
+    for r, sym in zip(results, symbols):
+        if not r.trades.empty:
+            trades.append(r.trades.assign(symbol=sym))
+    tdf = pd.concat(trades, ignore_index=True) if trades else results[0].trades
+    tdf = tdf[tdf["date"].isin(idx)].sort_values(["date", "entry_bar"]).reset_index(drop=True) if not tdf.empty else tdf
+    decisions = [d for r in results for d in r.decisions]
+    return BacktestResult(daily=daily, trades=tdf, decisions=decisions, config=cfg0)
+
+
+def _run_one(e: dict, runners: dict, synthetic: bool, period: str):
+    """Returns (config, result, engine, day_lookup) for a single run or a portfolio of sleeves."""
+    from .cli import Runner
+
+    def get_runner(cfg):
+        key = ("universe",) if cfg["strategy"] in ("orb", "gapgo", "dip") else ("single", cfg["symbol"])
+        if key not in runners:
+            runners[key] = Runner(cfg, synthetic=synthetic)
+        return runners[key]
+
+    if "portfolio" not in e:
+        cfg = load_config(e["config"])
+        cfg = override(cfg, dict(e["set"])) if e["set"] else cfg
+        runner = get_runner(cfg)
+        start, end = period_bounds(cfg, period)
+        return cfg, runner.run(cfg, start, end), getattr(runner, "last_engine", None), runner.day_lookup
+
+    sleeves = e["portfolio"]
+    total = None
+    cfgs = []
+    for sl in sleeves:
+        c = load_config(sl["config"])
+        sets = {**dict(e.get("set") or {}), **dict(sl.get("set") or {})}
+        c = override(c, sets) if sets else c
+        cfgs.append(c)
+    total = float(cfgs[0]["account"]["starting_equity"])
+    results, symbols = [], []
+    for c in cfgs:
+        c = override(c, {"account.starting_equity": total / len(cfgs)})
+        runner = get_runner(c)
+        start, end = period_bounds(c, period)
+        results.append(runner.run(c, start, end))
+        symbols.append(c["symbol"])
+    cfg0 = override(cfgs[0], {"symbol": "+".join(symbols)})
+    cfg0["portfolio"] = [{"symbol": c["symbol"], "params": c["params"]} for c in cfgs]
+    lookups = {sym: get_runner(c).day_lookup for sym, c in zip(symbols, cfgs)}
+
+    def day_lookup(date, symbol=None):
+        return lookups.get(symbol or symbols[0], lookups[symbols[0]])(date)
+
+    return cfg0, combine(results, symbols, cfg0), None, day_lookup
+
+
 def cmd_research(args) -> None:
     from .cli import Runner, _code_version, _on_github
 
@@ -109,12 +179,17 @@ def cmd_research(args) -> None:
     rows, skipped, stopped = [], 0, False
 
     for k, e in enumerate(exps, 1):
-        cfg = load_config(e["config"])
-        cfg = override(cfg, {key: val for key, val in e["set"].items()}) if e["set"] else cfg
         period = e.get("period", "tune")
         if period not in ("tune", "validate"):
             sys.exit(f"{e['name']}: research batches run tune or validate only; the holdout is scored separately.")
-        h = config_hash(cfg)
+        if "portfolio" in e:
+            import hashlib
+            blob = json.dumps({"p": e["portfolio"], "set": e.get("set")}, sort_keys=True, default=str)
+            h = "portfolio-" + hashlib.sha1(blob.encode()).hexdigest()[:10]
+        else:
+            cfg = load_config(e["config"])
+            cfg = override(cfg, dict(e["set"])) if e["set"] else cfg
+            h = config_hash(cfg)
         if not args.force and ((done["name"] == e["name"]) & (done["config_hash"] == h)
                                & (done["period"] == period)).any():
             skipped += 1
@@ -122,26 +197,23 @@ def cmd_research(args) -> None:
         if time.monotonic() > deadline:
             stopped = True
             break
-        key = ("universe",) if cfg["strategy"] in ("orb", "gapgo", "dip") else ("single", cfg["symbol"])
-        if key not in runners:
-            runners[key] = Runner(cfg, synthetic=args.synthetic)
-        runner = runners[key]
-        start, end = period_bounds(cfg, period)
         t0 = time.monotonic()
-        res = runner.run(cfg, start, end)
-        engine = getattr(runner, "last_engine", None)
+        cfg, res, engine, day_lookup = _run_one(e, runners, args.synthetic, period)
         run_id = dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + h[:6]
         record_trial(run_id, cfg, period, res.daily, label=f"research:{stem}:{e['name']}", synthetic=args.synthetic)
 
         a = analyze(res, period, sweep=None)  # the plateau check is read off the batch table instead
         report_stem = f"{run_id}_{_slug(e['name'])}_{period}" + ("_SYNTHETIC" if args.synthetic else "")
         report = build_report(res, a, cfg, period, run_id, out_dir / f"{report_stem}.html",
-                              day_lookup=runner.day_lookup, synthetic=args.synthetic, code_version=_code_version())
+                              day_lookup=day_lookup, synthetic=args.synthetic, code_version=_code_version())
         if engine is not None and getattr(engine, "ambiguous", None) and not args.synthetic:
             AMBIGUOUS_DIR.mkdir(parents=True, exist_ok=True)
             pd.DataFrame(engine.ambiguous, columns=["date", "symbol", "bar"]).to_parquet(
                 AMBIGUOUS_DIR / f"{stem}__{_slug(e['name'])}__{period}.parquet", index=False)
         row = _summary_row(e["name"], cfg, period, a, res, report.name, engine)
+        row["config_hash"] = h
+        if engine is not None and getattr(engine, "exec_symbol", None):
+            row["exec_skipped_days"] = engine.exec_skipped
         row["minutes"] = round((time.monotonic() - t0) / 60, 1)
         rows.append(row)
         line = (f"[{k}/{len(exps)}] {e['name']} ({period}): Sharpe {row['sharpe']:.2f}, "

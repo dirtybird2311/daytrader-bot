@@ -50,3 +50,21 @@ def make_days(n_days: int = 300, start: dt.date = dt.date(2018, 1, 2), seed: int
         days.append(Day(date=date, open=opens.copy(), high=highs, low=lows, close=path.copy(), volume=vol))
         price = float(path[-1])
     return days
+
+
+def leveraged_days(days: list[Day], mult: float = 3.0, start_price: float = 50.0) -> dict:
+    """A made-up daily-reset leveraged ETF of `days` (minute returns x mult), keyed by date. Tests only."""
+    out, px = {}, start_price
+    prev_close = None
+    for d in days:
+        base = d.close[-1] if prev_close is None else prev_close
+        ref = days[0].open[0] if prev_close is None else base
+
+        def lev(a):
+            return px * (1 + mult * (a / ref - 1))
+
+        o, h, l, c = lev(d.open), lev(d.high), lev(d.low), lev(d.close)
+        hi, lo = np.maximum.reduce([o, h, l, c]), np.minimum.reduce([o, h, l, c])
+        out[d.date] = Day(date=d.date, open=o, high=hi, low=lo, close=c, volume=d.volume.copy())
+        px, prev_close = float(c[-1]), float(d.close[-1])
+    return out
