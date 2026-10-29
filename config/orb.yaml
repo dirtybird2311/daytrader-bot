@@ -33,6 +33,13 @@ costs:
   commission_per_share: 0.0035   # paper: $0.0035/share
   slippage_per_share: 0.01       # paper assumes none; 1 cent each side is a conservative guess for breakouts
 
+# When one 1-minute bar touches both the entry level and the stop, minute data can't say which
+# came first. pessimistic = assume the stop was hit; close_confirmed = only if the bar closed beyond
+# the stop (provably hit after entry); optimistic = start checking the stop on the next bar (what
+# minute-bar backtests like the paper's typically do). A fill at the bar's open is never ambiguous.
+fills:
+  same_bar_stop: pessimistic
+
 account:
   starting_equity: 25000
 

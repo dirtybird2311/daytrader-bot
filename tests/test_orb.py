@@ -209,3 +209,27 @@ def test_no_edge_without_momentum(ocfg):
     res = OrbEngine(ocfg).run(flat)
     r = res.daily["ret"]
     assert r.mean() < 0  # with no real breakout effect, costs make it lose
+
+
+@pytest.mark.parametrize("mode,expect", [("pessimistic", "stop"), ("close_confirmed", "close"),
+                                         ("optimistic", "close")])
+def test_same_bar_stop_modes_mid_bar_entry(ocfg, mode, expect):
+    # Bar 5 opens below the 10.5 level, trades up through it (mid-bar fill), its low dips under the
+    # stop (10.3) but it closes above it: ambiguous. Later bars stay above the stop.
+    o = [10, 10.1, 10.2, 10.3, 10.35, 10.4, 10.55, 10.6, 10.7]
+    h = [10.2, 10.3, 10.4, 10.5, 10.45, 10.6, 10.65, 10.7, 10.8]
+    l = [9.8, 10.0, 10.1, 10.2, 10.3, 10.25, 10.5, 10.55, 10.65]
+    c = [10.1, 10.2, 10.3, 10.4, 10.4, 10.55, 10.6, 10.7, 10.75]
+    cfg = override(_cfg(ocfg), {"fills.same_bar_stop": mode})
+    t = OrbEngine(cfg).run(OneStock(_day(o, h, l, c), FEAT)).trades.iloc[0]
+    assert t["entry_px"] == pytest.approx(10.5) and t["exit_reason"] == expect
+
+
+def test_close_confirmed_stops_when_entry_bar_closes_through(ocfg):
+    o = [10, 10.1, 10.2, 10.3, 10.35, 10.4, 10.2, 10.2, 10.2]
+    h = [10.2, 10.3, 10.4, 10.5, 10.45, 10.6, 10.3, 10.3, 10.3]
+    l = [9.8, 10.0, 10.1, 10.2, 10.3, 10.15, 10.1, 10.1, 10.1]
+    c = [10.1, 10.2, 10.3, 10.4, 10.4, 10.2, 10.2, 10.2, 10.2]  # bar 5 closes below the 10.3 stop
+    cfg = override(_cfg(ocfg), {"fills.same_bar_stop": "close_confirmed"})
+    t = OrbEngine(cfg).run(OneStock(_day(o, h, l, c), FEAT)).trades.iloc[0]
+    assert t["exit_reason"] == "stop" and t["exit_bar"] == 5

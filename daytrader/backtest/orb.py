@@ -13,8 +13,9 @@ Fill rules (orders rest at the broker, so no decision delay):
   * entry stop triggers on the first bar (from 9:35) whose high (low for shorts) reaches the
     level; fill = the worse of the level and that bar's open, plus slippage
   * protective stop: if a bar opens through it, fill at the open; else if the bar's range
-    touches it, fill at the stop; slippage on top. A bar that both triggers the entry and touches
-    the stop is assumed to hit the stop (we can't see the order of ticks within a minute).
+    touches it, fill at the stop; slippage on top.
+  * the entry bar itself is ambiguous when the fill happened mid-bar: config fills.same_bar_stop
+    picks pessimistic / close_confirmed / optimistic (see config/orb.yaml).
 """
 
 from __future__ import annotations
@@ -46,6 +47,9 @@ class OrbEngine:
         self.max_lev = float(s["max_leverage"])
         self.commission = float(c["commission_per_share"])
         self.slip = float(c["slippage_per_share"])
+        self.same_bar = cfg.get("fills", {}).get("same_bar_stop", "pessimistic")
+        if self.same_bar not in ("pessimistic", "close_confirmed", "optimistic"):
+            raise ValueError("fills.same_bar_stop must be pessimistic, close_confirmed or optimistic")
         self.flat_band = float(cfg.get("benchmark", {}).get("flat_band", 0.003))
 
     def run(self, data: OrbData, start: dt.date | None = None, end: dt.date | None = None) -> BacktestResult:
@@ -115,11 +119,21 @@ class OrbEngine:
         entry = raw + direction * self.slip
         stop = entry - direction * risk_ps
         exit_i, exit_px, reason = last, c[last] - direction * self.slip, "close"
+        filled_at_open = (o[i] >= level) if direction > 0 else (o[i] <= level)
         for j in range(i, day.n):
             if j > i and ((o[j] <= stop) if direction > 0 else (o[j] >= stop)):
                 exit_i, exit_px, reason = j, o[j] - direction * self.slip, "stop_gap"
                 break
-            if (l[j] <= stop) if direction > 0 else (h[j] >= stop):
+            touched = (l[j] <= stop) if direction > 0 else (h[j] >= stop)
+            if j == i and not filled_at_open:
+                # Entry happened mid-bar: minute data can't say whether the bar's low (high for
+                # shorts) came before or after the fill. How to treat it is a model choice.
+                closed_through = (c[j] <= stop) if direction > 0 else (c[j] >= stop)
+                if self.same_bar == "optimistic":
+                    touched = False
+                elif self.same_bar == "close_confirmed":
+                    touched = closed_through  # closing beyond the stop proves it was crossed after entry
+            if touched:
                 exit_i, exit_px, reason = j, stop - direction * self.slip, "stop"
                 break
         hi, lo = h[i:exit_i + 1].max(), l[i:exit_i + 1].min()
