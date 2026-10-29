@@ -29,12 +29,15 @@ from .report.html import build_report
 from .strategies import build_strategy
 
 
+UNIVERSE_STRATEGIES = ("orb", "gapgo", "dip")
+
+
 class Runner:
     """Loads a strategy's data once, then runs any config variant over any date range."""
 
     def __init__(self, cfg: dict, synthetic: bool):
         self.kind = cfg["strategy"]
-        if self.kind == "orb":
+        if self.kind in UNIVERSE_STRATEGIES:
             from .data.orb_data import CachedOrbData, SyntheticOrbData
             self.data = (SyntheticOrbData(n_days=1600, n_symbols=60, seed=7, momentum=0.12, start=dt.date(2016, 1, 4))
                          if synthetic else CachedOrbData(cfg["data"]["cache_dir"]))
@@ -51,21 +54,23 @@ class Runner:
         self.synthetic = synthetic
 
     def run(self, cfg: dict, start, end):
-        if self.kind == "orb":
+        if cfg["strategy"] in UNIVERSE_STRATEGIES:
+            from .backtest.dip import DipEngine
             from .backtest.orb import OrbEngine
             if not self.synthetic:
+                extra = cfg["strategy"] != "orb"
                 missing = [d for d in self.data.dates if (not start or d >= start) and (not end or d <= end)
-                           and not self.data.has_minutes(d)]
+                           and not self.data.has_minutes(d, extra=extra)]
                 if missing:
                     sys.exit(f"Minute data is missing for {len(missing)} days ({missing[0]} to {missing[-1]}). "
-                             "Run the download again; it resumes where it stopped.")
-            self.last_engine = OrbEngine(cfg)
+                             "Run the stocks-in-play download again; it resumes where it stopped.")
+            self.last_engine = DipEngine(cfg) if cfg["strategy"] == "dip" else OrbEngine(cfg)
             return self.last_engine.run(self.data, start, end)
         self.last_engine = Engine(cfg, build_strategy(cfg))
         return self.last_engine.run(self.days, start, end)
 
     def day_lookup(self, date, symbol=None):
-        if self.kind == "orb":
+        if self.kind in UNIVERSE_STRATEGIES:
             return self.data.minute_day(date, symbol)
         return self._by_date.get(date)
 

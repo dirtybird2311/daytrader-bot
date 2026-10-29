@@ -1,0 +1,55 @@
+# Gap-and-go on large-cap gappers (research queue #7, pre-registered in RESEARCH.md).
+# Runs on the stocks-in-play engine with a different morning list. Data: the stocks-in-play
+# cache plus its "extra" minute download (see config/orb.yaml, download.extra).
+
+strategy: gapgo
+symbol: US large caps (gap-ups)
+
+data:
+  start: "2016-01-01"
+  end: null
+  cache_dir: data
+
+periods:
+  tune: ["2016-01-01", "2021-12-31"]
+  validate: ["2022-01-01", "2023-12-31"]
+  holdout: ["2024-01-01", null]
+
+params:
+  selection: gap
+  min_gap: 0.02            # open at least 2% above the prior close
+  max_gap: 0.10            # and at most 10%
+  large_cap_rank: 500      # top 500 by 14-day average dollar volume
+  min_price: 10.0
+  top_n: 5                 # gappers traded per day, ranked by 5-minute relative volume
+  direction: long          # buy-stop at the first 5-minute high only
+  stop_mode: range         # stop at the first 5-minute low
+  last_entry: "10:30"      # entry orders cancelled at 10:30
+  stop_atr: 0.10           # unused with stop_mode: range
+  allow_short: false
+  lookback_days: 14
+  min_avg_volume: 0        # the large-cap rank does the liquidity screen
+  min_atr: 0
+  min_rel_volume: 0
+
+sizing:
+  risk_per_trade: 0.01     # a stop-out loses 1% of that slot (equity / top_n)
+  max_leverage: 1.0        # no margin
+
+costs:
+  commission_per_share: 0.0035   # paper: $0.0035/share
+  slippage_per_share: 0.01       # paper assumes none; 1 cent each side is a conservative guess for breakouts
+
+# When one 1-minute bar touches both the entry level and the stop, minute data can't say which
+# came first. pessimistic = assume the stop was hit; close_confirmed = only if the bar closed beyond
+# the stop (provably hit after entry); optimistic = start checking the stop on the next bar (what
+# minute-bar backtests like the paper's typically do). A fill at the bar's open is never ambiguous.
+fills:
+  same_bar_stop: pessimistic
+
+account:
+  starting_equity: 25000
+
+benchmark:
+  flat_band: 0.003
+

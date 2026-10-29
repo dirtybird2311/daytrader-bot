@@ -1,0 +1,44 @@
+# Research batch B: needs the tick download (for the stocks-in-play runs) and the extra
+# minute download (gap-and-go, buy-the-dip). Every entry is pre-registered in RESEARCH.md.
+name: phase_b
+experiments:
+  # ---- Stocks in play, judged with tick-resolved entry minutes ----
+  - name: orb_ticks_baseline
+    config: config/orb.yaml
+    set: {fills.same_bar_stop: ticks}
+  - name: orb_ticks_long_only
+    config: config/orb.yaml
+    set: {fills.same_bar_stop: ticks, params.allow_short: false}
+  - name: orb_ticks_or_length
+    config: config/orb.yaml
+    set: {fills.same_bar_stop: ticks}
+    grid:
+      params.or_minutes: [1, 15, 30]
+  - name: orb_ticks_vwap_exit
+    config: config/orb.yaml
+    set: {fills.same_bar_stop: ticks, params.exit_mode: vwap}
+    grid:
+      params.stop_atr: [0.1, 0.5, 1.0]
+  - name: orb_ticks_ta
+    config: config/orb.yaml
+    set: {fills.same_bar_stop: ticks}
+    grid:
+      params.ta_filter: [sma, rsi, macd, bollinger]
+
+  # ---- Gap-and-go on large caps (queue #7): both bounds of the same-minute rule ----
+  - name: gapgo
+    config: config/gapgo.yaml
+    grid:
+      params.min_gap: [0.01, 0.02, 0.03]
+      params.last_entry: ["10:00", "10:30", "11:30"]
+  - name: gapgo_close_confirmed
+    config: config/gapgo.yaml
+    set: {fills.same_bar_stop: close_confirmed}
+
+  # ---- Buy the dip on parabolic runners (queue #8): entries fill at a bar's open, no ambiguity ----
+  - name: dip
+    config: config/dip.yaml
+    grid:
+      params.run_days: [3, 4, 5]
+      params.zone_atr: [0.15, 0.25, 0.35]
+      params.stop_atr: [0.1, 0.15, 0.25]

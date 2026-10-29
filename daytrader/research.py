@@ -88,6 +88,8 @@ def _summary_row(name, cfg, period, a, res, report, engine) -> dict:
         row.update({f"fills_{k}": v for k, v in fills.items()})
     if engine is not None and hasattr(engine, "ambiguous"):
         row["ambiguous_minutes"] = len(engine.ambiguous)
+    if engine is not None and hasattr(engine, "missing_total"):
+        row["missing_minute_days"] = engine.missing_total  # candidates skipped for lack of minute data
     return row
 
 
@@ -120,7 +122,7 @@ def cmd_research(args) -> None:
         if time.monotonic() > deadline:
             stopped = True
             break
-        key = ("orb",) if cfg["strategy"] == "orb" else ("single", cfg["symbol"])
+        key = ("universe",) if cfg["strategy"] in ("orb", "gapgo", "dip") else ("single", cfg["symbol"])
         if key not in runners:
             runners[key] = Runner(cfg, synthetic=args.synthetic)
         runner = runners[key]

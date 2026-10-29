@@ -273,6 +273,37 @@ def sync_minutes(client, features: pd.DataFrame, screen_cfg: dict, top_k: int, s
     return True
 
 
+def sync_extra_minutes(client, features: pd.DataFrame, daily: pd.DataFrame, cfg: dict, start: dt.date,
+                       end: dt.date, root: Path, budget: Budget, log=print) -> bool:
+    """Minute bars for gap-and-go and buy-the-dip candidates not in the main minute download."""
+    from .setups import extra_minute_pairs
+
+    folder = root / "minute_extra"
+    folder.mkdir(parents=True, exist_ok=True)
+    s = cfg["download"]
+    picks = screen(features, **s["screen"])
+    picks = picks[picks["rank"] <= int(s["top_k"])]
+    already = {d: set(g["symbol"].astype(str)) for d, g in picks.groupby("date")}
+    by_day = extra_minute_pairs(features, daily, s["extra"], already)
+    for m in _months(start, end):
+        path = folder / f"{m:%Y-%m}.parquet"
+        final = _month_end(m) < end
+        if path.exists() and final:
+            continue
+        if budget.out():
+            return False
+        frames = []
+        days = sorted(d for d in by_day if d.year == m.year and d.month == m.month and start <= d <= end and by_day[d])
+        for day in days:
+            frames.append(fetch_tolerant(client, by_day[day], _et(day, 9, 30), _et(day, 15, 59), "1Min", log))
+        df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(
+            columns=["symbol", "t", "o", "h", "l", "c", "v"])
+        df.to_parquet(path, index=False)
+        n = sum(len(by_day[d]) for d in days)
+        log(f"  extra minute {m:%Y-%m}: {len(df):,} bars for {n} stock-days")
+    return True
+
+
 def sync_all(client, cfg: dict, minutes: float, log=print) -> dict:
     """Run every stage that still needs work within the time budget. Returns a status dict."""
     root = Path(cfg["data"]["cache_dir"]) / "universe"
@@ -282,6 +313,8 @@ def sync_all(client, cfg: dict, minutes: float, log=print) -> dict:
     pre_start = (pd.Timestamp(start) - pd.Timedelta(days=60)).date()  # warm-up for 14-day lookbacks
     end = last_complete_day()
     status = {"assets": False, "daily": False, "opening": False, "features": False, "minute": False}
+    if cfg["download"].get("extra"):
+        status["extra"] = False
 
     assets = sync_assets(client, root, log)
     status["assets"] = True
@@ -300,6 +333,9 @@ def sync_all(client, cfg: dict, minutes: float, log=print) -> dict:
             s = cfg["download"]
             status["minute"] = sync_minutes(client, feats, s["screen"], int(s["top_k"]), start, end, root,
                                             budget, log)
+            if status["minute"] and "extra" in status:
+                log("Stage extra minutes (gap-and-go, buy-the-dip)")
+                status["extra"] = sync_extra_minutes(client, feats, daily, cfg, start, end, root, budget, log)
     status["complete"] = all(status.values())
     status["through"] = str(end)
     (root / "status.json").write_text(json.dumps(status, indent=2))

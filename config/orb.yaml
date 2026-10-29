@@ -55,6 +55,22 @@ download:
     min_avg_volume: 1000000
     min_atr: 0.50
     min_rel_volume: 1.0
+  # Extra minute bars for the gap-and-go and buy-the-dip research (queue #7, #8).
+  # Loose enough for every setting in their pre-registered sweeps.
+  extra:
+    gap:
+      min_gaps: [0.01, 0.02, 0.03]   # top `top` by relative volume at each threshold
+      max_gap: 0.10
+      large_cap_rank: 500
+      min_price: 10.0
+      top: 10
+    dip:
+      run_days: [3, 4, 5]
+      resistance_lookback: 20
+      min_price: 5.0
+      min_avg_volume: 1000000
+      min_atr: 0.50
+      top: 30
 
 reference:
   source: "Zarattini, Barbon & Aziz (2024), Jan 2016 - Dec 2023"

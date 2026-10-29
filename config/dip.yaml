@@ -1,0 +1,48 @@
+# Buy the dip on parabolic runners (research queue #8, pre-registered in RESEARCH.md).
+# Data: the stocks-in-play cache plus its "extra" minute download (config/orb.yaml).
+
+strategy: dip
+symbol: US equities (parabolic runners)
+
+data:
+  start: "2016-01-01"
+  end: null
+  cache_dir: data
+
+periods:
+  tune: ["2016-01-01", "2021-12-31"]
+  validate: ["2022-01-01", "2023-12-31"]
+  holdout: ["2024-01-01", null]
+
+params:
+  run_days: 3              # consecutive up days with expanding ranges
+  resistance_lookback: 20  # old resistance = highest high of the 20 days before the run
+  zone_atr: 0.25           # pullback zone: within 0.25 x ATR of the resistance
+  stop_atr: 0.15           # stop: resistance - 0.15 x ATR
+  target_r: 2.0            # sell half at 2R, breakeven stop on the rest
+  last_entry: "11:30"
+  min_price: 5.0
+  min_avg_volume: 1000000
+  min_atr: 0.50
+
+sizing:
+  risk_per_trade: 0.01     # of equity, per trade
+  max_positions: 5         # first 5 setups to trigger; each capped at equity / 5 notional
+
+costs:
+  commission_per_share: 0.0035   # paper: $0.0035/share
+  slippage_per_share: 0.01       # paper assumes none; 1 cent each side is a conservative guess for breakouts
+
+# When one 1-minute bar touches both the entry level and the stop, minute data can't say which
+# came first. pessimistic = assume the stop was hit; close_confirmed = only if the bar closed beyond
+# the stop (provably hit after entry); optimistic = start checking the stop on the next bar (what
+# minute-bar backtests like the paper's typically do). A fill at the bar's open is never ambiguous.
+fills:
+  same_bar_stop: pessimistic
+
+account:
+  starting_equity: 25000
+
+benchmark:
+  flat_band: 0.003
+

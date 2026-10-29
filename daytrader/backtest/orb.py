@@ -33,8 +33,9 @@ import math
 import numpy as np
 import pandas as pd
 
-from ..data.model import minute_to_clock
+from ..data.model import clock_to_bar_index, minute_to_clock
 from ..data.orb_data import OrbData
+from ..data.setups import gap_candidates
 from ..data.ta import passes
 from ..data.universe import screen
 from .engine import BacktestResult, Decision
@@ -70,6 +71,20 @@ class OrbEngine:
         self.ta_args = {"rsi_hi": float(p.get("rsi_hi", 80)), "rsi_lo": float(p.get("rsi_lo", 20)),
                         "bb_k": float(p.get("bb_k", 2.0))}
         self.sma_days = int(p.get("sma_days", 20))
+        # Gap-and-go (research queue #7) reuses this engine with a different morning list
+        self.selection = p.get("selection", "rel_volume")
+        if self.selection not in ("rel_volume", "gap"):
+            raise ValueError("params.selection must be 'rel_volume' or 'gap'")
+        if self.selection == "gap":
+            self.gap_cfg = {"min_gap": float(p["min_gap"]), "max_gap": float(p["max_gap"]),
+                            "large_cap_rank": int(p["large_cap_rank"]), "min_price": float(p["min_price"])}
+        self.direction_rule = p.get("direction", "candle")
+        self.stop_mode = p.get("stop_mode", "atr")
+        if self.stop_mode not in ("atr", "range"):
+            raise ValueError("params.stop_mode must be 'atr' or 'range'")
+        le = p.get("last_entry")
+        self.entry_end = clock_to_bar_index(le) + 1 if le else None  # entries only on bars starting before this
+        self.missing_total = 0
         self.ambiguous: list[tuple] = []  # (date, symbol, bar): entry minutes minute bars can't resolve
         self.fill_sources = {"bar": 0, "ticks": 0, "ticks_missing": 0}
         self.flat_band = float(cfg.get("benchmark", {}).get("flat_band", 0.003))
@@ -82,7 +97,12 @@ class OrbEngine:
                 continue
             eq0 = equity
             feats = data.features(date)
-            picks = screen(feats, **self.screen_cfg) if not feats.empty else feats
+            if feats.empty:
+                picks = feats
+            elif self.selection == "gap":
+                picks = gap_candidates(feats, **self.gap_cfg)
+            else:
+                picks = screen(feats, **self.screen_cfg)
             picks = picks[picks["rank"] <= self.top_n] if not picks.empty else picks
             day_trades, missing, notional = [], 0, 0.0
             alloc = eq0 / self.top_n
@@ -98,7 +118,7 @@ class OrbEngine:
                         continue
                     k = self.or_minutes
                     o5, h5, l5, c5 = day.open[0], day.high[:k].max(), day.low[:k].min(), day.close[k - 1]
-                direction = int(np.sign(c5 - o5))
+                direction = 1 if self.direction_rule == "long" else int(np.sign(c5 - o5))
                 if direction == 0 or (direction < 0 and not self.allow_short):
                     continue
                 if ta is not None:
@@ -114,11 +134,16 @@ class OrbEngine:
                 if day is None or day.n <= self.start_bar + 1:
                     missing += 1
                     continue
-                risk_ps = self.stop_atr * atr
+                fixed_stop = None
+                if self.stop_mode == "range":
+                    fixed_stop = float(l5 if direction > 0 else h5)
+                    risk_ps = abs(level - fixed_stop)
+                else:
+                    risk_ps = self.stop_atr * atr
                 shares = math.floor(min(alloc * self.risk / risk_ps, alloc * self.max_lev / level)) if risk_ps > 0 else 0
                 if shares < 1:
                     continue
-                t = self._simulate(day, pk, direction, level, risk_ps, shares, data)
+                t = self._simulate(day, pk, direction, level, risk_ps, shares, data, fixed_stop)
                 if t is None:
                     continue
                 decisions.append(Decision(date, t["entry_bar"], t["entry_time"], direction,
@@ -127,6 +152,7 @@ class OrbEngine:
                                           f"exit:{pk['symbol']}:{t['exit_reason']}", t["exit_px"]))
                 notional += t["entry_px"] * shares
                 day_trades.append(t)
+            self.missing_total += missing
             pnl = sum(t["pnl"] for t in day_trades)
             equity = eq0 + pnl
             trades.extend(day_trades)
@@ -145,19 +171,20 @@ class OrbEngine:
         return BacktestResult(daily=daily, trades=tdf, decisions=decisions, config=self.cfg)
 
     def _simulate(self, day, pk, direction: int, level: float, risk_ps: float, shares: int,
-                  data: OrbData | None = None) -> dict | None:
+                  data: OrbData | None = None, fixed_stop: float | None = None) -> dict | None:
         o, h, l, c = day.open, day.high, day.low, day.close
         last = day.n - 1
         s0 = self.start_bar
         # entry: first bar after the opening range whose range reaches the level (cancelled at the close)
-        reach = (h[s0:last] >= level) if direction > 0 else (l[s0:last] <= level)
+        e_end = last if self.entry_end is None else min(last, self.entry_end)
+        reach = (h[s0:e_end] >= level) if direction > 0 else (l[s0:e_end] <= level)
         idx = np.flatnonzero(reach)
         if idx.size == 0:
             return None
         i = s0 + int(idx[0])
         raw = max(level, o[i]) if direction > 0 else min(level, o[i])
         entry = raw + direction * self.slip
-        stop = entry - direction * risk_ps
+        stop = fixed_stop if fixed_stop is not None else entry - direction * risk_ps
         exit_i, exit_px, reason = last, c[last] - direction * self.slip, "close"
         filled_at_open = (o[i] >= level) if direction > 0 else (o[i] <= level)
         vwap = None
@@ -180,7 +207,7 @@ class OrbEngine:
                 k = int(hit[0])
                 raw = max(level, float(prints[k])) if direction > 0 else min(level, float(prints[k]))
                 entry = raw + direction * self.slip
-                stop = entry - direction * risk_ps
+                stop = fixed_stop if fixed_stop is not None else entry - direction * risk_ps
                 after = prints[k + 1:]
                 through = np.flatnonzero(after <= stop if direction > 0 else after >= stop)
                 if through.size:
