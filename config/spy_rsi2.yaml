@@ -1,0 +1,33 @@
+# D3: RSI(2) pullback on SPY, Connors style (pre-registered in RESEARCH.md, batch D).
+strategy: spy_rsi2
+symbol: SPY
+
+data:
+  start: "2015-01-01"    # 2015 is warm-up only (the volatility regime filter looks back a year)
+  end: null              # null = up to the latest completed day
+  cache_dir: data
+
+# Every trading day in the span is used; nothing is hand-picked.
+# Tune freely, validate to check, score the holdout once at the very end.
+periods:
+  tune: ["2016-01-01", "2021-12-31"]
+  validate: ["2022-01-01", "2023-12-31"]
+  holdout: ["2024-01-01", null]
+
+params:
+  rsi_entry: 10            # buy when RSI(2) at 3:50 pm is below this
+  sma_trend: 200           # ...and price is above its 200-day average
+  sma_exit: 5              # sell when price is above its 5-day average
+
+sizing:
+  max_leverage: 1.0
+
+costs:
+  commission_per_share: 0.0035
+  slippage_per_share: 0.01       # each side; market-on-close / market-on-open fills
+
+account:
+  starting_equity: 25000
+
+benchmark:
+  flat_band: 0.003

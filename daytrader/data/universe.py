@@ -304,6 +304,44 @@ def sync_extra_minutes(client, features: pd.DataFrame, daily: pd.DataFrame, cfg:
     return True
 
 
+def sync_snapshots(client, features: pd.DataFrame, snap_cfg: dict, start: dt.date, end: dt.date, root: Path,
+                   budget: Budget, log=print) -> bool:
+    """3:50 pm prices (close of the 3:49 bar) for the largest stocks by prior dollar volume."""
+    folder = root / "snap"
+    folder.mkdir(parents=True, exist_ok=True)
+    f = features[features["prev_close"] > float(snap_cfg["min_price"])][["symbol", "date", "prev_close", "avg_volume"]].copy()
+    f["dv"] = f["avg_volume"] * f["prev_close"]
+    f["r"] = f.groupby("date")["dv"].rank(ascending=False, method="first")
+    f = f[f["r"] <= int(snap_cfg["top"])]
+    by_day = {d: sorted(g["symbol"].astype(str)) for d, g in f.groupby("date")}
+    for m in _months(start, end):
+        path = folder / f"{m:%Y-%m}.parquet"
+        if path.exists() and _month_end(m) < end:
+            continue
+        if budget.out():
+            return False
+        rows = []
+        days = sorted(d for d in by_day if d.year == m.year and d.month == m.month and start <= d <= end)
+        for day in days:
+            t0 = _et(day, 15, 49)
+            got = fetch_tolerant(client, by_day[day], t0, t0 + dt.timedelta(seconds=59), "1Min", log)
+            if not got.empty:
+                rows.append(pd.DataFrame({"symbol": got["symbol"].astype(str), "date": day, "snap": got["c"].astype(float)}))
+        df = pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(columns=["symbol", "date", "snap"])
+        df.to_parquet(path, index=False)
+        log(f"  snap {m:%Y-%m}: {len(df):,} prices over {len(days)} days")
+    return True
+
+
+def load_snapshots(root: Path) -> pd.DataFrame:
+    files = sorted((root / "snap").glob("*.parquet"))
+    if not files:
+        return pd.DataFrame(columns=["symbol", "date", "snap"])
+    df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
+    df["date"] = pd.to_datetime(df["date"]).dt.date
+    return df.drop_duplicates(["symbol", "date"], keep="last")
+
+
 def sync_all(client, cfg: dict, minutes: float, log=print) -> dict:
     """Run every stage that still needs work within the time budget. Returns a status dict."""
     root = Path(cfg["data"]["cache_dir"]) / "universe"
@@ -315,6 +353,8 @@ def sync_all(client, cfg: dict, minutes: float, log=print) -> dict:
     status = {"assets": False, "daily": False, "opening": False, "features": False, "minute": False}
     if cfg["download"].get("extra"):
         status["extra"] = False
+    if cfg["download"].get("snap"):
+        status["snap"] = False
 
     assets = sync_assets(client, root, log)
     status["assets"] = True
@@ -336,6 +376,9 @@ def sync_all(client, cfg: dict, minutes: float, log=print) -> dict:
             if status["minute"] and "extra" in status:
                 log("Stage extra minutes (gap-and-go, buy-the-dip)")
                 status["extra"] = sync_extra_minutes(client, feats, daily, cfg, start, end, root, budget, log)
+            if status["minute"] and status.get("extra", True) and "snap" in status:
+                log("Stage 3:50 pm snapshots (batch D)")
+                status["snap"] = sync_snapshots(client, feats, s["snap"], start, end, root, budget, log)
     status["complete"] = all(status.values())
     status["through"] = str(end)
     (root / "status.json").write_text(json.dumps(status, indent=2))

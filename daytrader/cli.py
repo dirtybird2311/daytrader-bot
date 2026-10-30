@@ -29,7 +29,8 @@ from .report.html import build_report
 from .strategies import build_strategy
 
 
-UNIVERSE_STRATEGIES = ("orb", "gapgo", "dip")
+UNIVERSE_STRATEGIES = ("orb", "gapgo", "dip", "reversal")
+DAILY_SPY_STRATEGIES = ("spy_overnight", "spy_rsi2")
 
 
 class Runner:
@@ -54,6 +55,20 @@ class Runner:
         self.synthetic = synthetic
 
     def run(self, cfg: dict, start, end):
+        if cfg["strategy"] == "reversal":
+            from .backtest.daily import DailyEngine, UniverseDaily
+            snaps = self.data.snapshots()
+            if snaps.empty:
+                sys.exit("No 3:50 pm snapshots yet. Run the stocks-in-play download (it adds them).")
+            if not hasattr(self, "_universe_daily"):
+                self._universe_daily = UniverseDaily(self.data, snaps, int(cfg["params"]["large_cap_rank"]),
+                                                     float(cfg["params"]["min_price"]))
+            self.last_engine = DailyEngine(cfg)
+            return self.last_engine.run(self._universe_daily, start, end)
+        if cfg["strategy"] in DAILY_SPY_STRATEGIES:
+            from .backtest.daily import DailyEngine, SpyDaily
+            self.last_engine = DailyEngine(cfg)
+            return self.last_engine.run(SpyDaily(self.days, cfg["symbol"]), start, end)
         if cfg["strategy"] in UNIVERSE_STRATEGIES:
             from .backtest.dip import DipEngine
             from .backtest.orb import OrbEngine
@@ -122,10 +137,10 @@ def cmd_download(args) -> None:
         status = sync_all(client, cfg, args.max_minutes)
         print(json.dumps(status, indent=2))
         root = Path(cfg["data"]["cache_dir"]) / "universe"
-        counts = {k: len(list((root / k).glob("*.parquet"))) for k in ("daily", "opening", "minute", "minute_extra")}
-        stages = ", ".join(k for k in ("assets", "daily", "opening", "features", "minute", "extra") if status.get(k))
+        counts = {k: len(list((root / k).glob("*.parquet"))) for k in ("daily", "opening", "minute", "minute_extra", "snap")}
+        stages = ", ".join(k for k in ("assets", "daily", "opening", "features", "minute", "extra", "snap") if status.get(k))
         line = (f"Stages done: {stages or 'none'} | files: daily {counts['daily']}, opening {counts['opening']} months, "
-                f"minute {counts['minute']} months, extra {counts['minute_extra']} months | through {status.get('through')}")
+                f"minute {counts['minute']} months, extra {counts['minute_extra']} months, snap {counts['snap']} months | through {status.get('through')}")
         print(f"::notice title=Download progress::{line}" if _on_github() else line)
         if not status["complete"]:
             msg = "Download stopped at its time budget; run it again to continue (cached progress is kept)."

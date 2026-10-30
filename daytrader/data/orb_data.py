@@ -43,6 +43,10 @@ class OrbData:
             cache[sma_days] = {d: g.set_index("symbol") for d, g in t.groupby("date")}
         return cache[sma_days].get(date, pd.DataFrame())
 
+    def snapshots(self) -> pd.DataFrame:
+        """3:50 pm prices: symbol, date, snap (batch D)."""
+        raise NotImplementedError
+
     def tick_prices(self, date: dt.date, symbol: str, bar: int) -> np.ndarray | None:
         """Round-lot trade prices, in time order, inside one minute (see data/ticks.py)."""
         return None
@@ -98,6 +102,10 @@ class CachedOrbData(OrbData):
         if not hasattr(self, "_ticks"):
             self._ticks = TickStore(self.root / "ticks")
         return self._ticks.get(date, symbol, bar)
+
+    def snapshots(self) -> pd.DataFrame:
+        from .universe import load_snapshots
+        return load_snapshots(self.root)
 
     def has_minutes(self, date: dt.date, extra: bool = False) -> bool:
         key = f"{date:%Y-%m}"
@@ -204,6 +212,13 @@ class SyntheticOrbData(OrbData):
 
     def daily_frame(self) -> pd.DataFrame:
         return self.daily
+
+    def snapshots(self) -> pd.DataFrame:
+        rows = []
+        for k, date in enumerate(self.dates):
+            close = self._day_matrix(k, self._prev_close[k])[3]
+            rows.append(pd.DataFrame({"symbol": self.symbols, "date": date, "snap": close[:, 379]}))
+        return pd.concat(rows, ignore_index=True)
 
     def market(self, date: dt.date) -> tuple[float, float]:
         r = self._mkt[date]

@@ -1,0 +1,19 @@
+# Batch D: holding overnight to a few days. Pre-registered in RESEARCH.md.
+name: batch_d
+experiments:
+  - name: d1_spy_overnight
+    config: config/spy_overnight.yaml
+  - name: d2a_reversal_next_open
+    config: config/reversal.yaml
+    set: {params.exit: next_open}
+    grid:
+      params.n_picks: [5, 10, 20]
+  - name: d2b_reversal_next_close
+    config: config/reversal.yaml
+    set: {params.exit: next_close}
+    grid:
+      params.n_picks: [5, 10, 20]
+  - name: d3_spy_rsi2
+    config: config/spy_rsi2.yaml
+    grid:
+      params.rsi_entry: [5, 10, 15]

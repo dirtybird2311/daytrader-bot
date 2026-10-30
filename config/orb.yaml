@@ -71,6 +71,10 @@ download:
       min_avg_volume: 1000000
       min_atr: 0.50
       top: 30
+  # 3:50 pm prices for the largest stocks (batch D, one-day reversal)
+  snap:
+    top: 600               # by 14-day average dollar volume; the strategy uses the top 500
+    min_price: 5.0
 
 reference:
   source: "Zarattini, Barbon & Aziz (2024), Jan 2016 - Dec 2023"

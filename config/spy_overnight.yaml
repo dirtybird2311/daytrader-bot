@@ -1,0 +1,30 @@
+# D1: buy SPY at the close, sell at the next open (pre-registered in RESEARCH.md, batch D).
+strategy: spy_overnight
+symbol: SPY
+
+data:
+  start: "2015-01-01"    # 2015 is warm-up only (the volatility regime filter looks back a year)
+  end: null              # null = up to the latest completed day
+  cache_dir: data
+
+# Every trading day in the span is used; nothing is hand-picked.
+# Tune freely, validate to check, score the holdout once at the very end.
+periods:
+  tune: ["2016-01-01", "2021-12-31"]
+  validate: ["2022-01-01", "2023-12-31"]
+  holdout: ["2024-01-01", null]
+
+params: {}
+
+sizing:
+  max_leverage: 1.0        # no margin
+
+costs:
+  commission_per_share: 0.0035
+  slippage_per_share: 0.01       # each side; market-on-close / market-on-open fills
+
+account:
+  starting_equity: 25000
+
+benchmark:
+  flat_band: 0.003
