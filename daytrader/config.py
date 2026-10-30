@@ -55,7 +55,7 @@ def _validate(cfg: dict[str, Any]) -> None:
     if missing:
         raise ValueError(f"Config missing sections: {missing}")
     p = cfg["params"]
-    if cfg["strategy"] not in ("orb", "gapgo", "dip", "reversal", "spy_overnight", "spy_rsi2", "spy_rules") \
+    if cfg["strategy"] not in ("orb", "gapgo", "dip", "reversal", "spy_overnight", "spy_rsi2", "spy_rules", "stock_rules") \
             and cfg["costs"]["fill_delay_bars"] < 1:
         raise ValueError("costs.fill_delay_bars must be >= 1 (no same-bar fills)")
     if cfg["strategy"] == "spy_noise":
@@ -65,6 +65,9 @@ def _validate(cfg: dict[str, Any]) -> None:
             raise ValueError("sizing.mode must be 'vol_target' or 'fixed'")
         if cfg["costs"]["fill_delay_bars"] < 1:
             raise ValueError("costs.fill_delay_bars must be >= 1 (no same-bar fills)")
+    elif cfg["strategy"] == "stock_rules":
+        if int(p["large_cap_rank"]) > 600:
+            raise ValueError("params.large_cap_rank cannot exceed the 600 names in the snapshot download")
     elif cfg["strategy"] == "reversal":
         if p.get("exit") not in ("next_open", "next_close"):
             raise ValueError("params.exit must be next_open or next_close")

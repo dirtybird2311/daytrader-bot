@@ -1,0 +1,14 @@
+# Research batch I: the SPY swing rules on individual large caps. Pre-registered in RESEARCH.md.
+name: batch_i
+experiments:
+  - name: i1_stocks_three_rules_trend
+    config: config/stock_rules.yaml
+  - name: i2_stocks_three_rules_no_trend
+    config: config/stock_rules.yaml
+    set: {params.sma_trend: 0}
+  - name: i3_stocks_rsi2_trend
+    config: config/stock_rules.yaml
+    set: {params.rules: [rsi2_high]}
+  - name: i4_stocks_four_rules_trend_20
+    config: config/stock_rules.yaml
+    set: {params.rules: [down3_overnight, five_day_low, rsi2_high, turnaround_tue], params.max_positions: 20}

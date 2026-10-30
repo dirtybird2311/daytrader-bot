@@ -125,7 +125,7 @@ def _run_one(e: dict, runners: dict, synthetic: bool, period: str):
     from .cli import Runner
 
     def get_runner(cfg):
-        key = ("universe",) if cfg["strategy"] in ("orb", "gapgo", "dip", "reversal") else ("single", cfg["symbol"])
+        key = ("universe",) if cfg["strategy"] in ("orb", "gapgo", "dip", "reversal", "stock_rules") else ("single", cfg["symbol"])
         if key not in runners:
             runners[key] = Runner(cfg, synthetic=synthetic)
         return runners[key]

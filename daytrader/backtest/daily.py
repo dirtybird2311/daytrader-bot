@@ -155,6 +155,51 @@ class UniverseDaily(DailyData):
     def market(self, date):
         return self.base.market(date)
 
+    # ---- per-stock indicators for stock_rules (batch I); row i uses days < i plus today's snap ----
+    def stock_state(self, symbol, date, need: int = 205):
+        """Yesterday-and-earlier values for one stock, or None if it has too little clean history:
+        c1..c3 (last three closes), h1 (yesterday's high), low5 (lowest low of the prior 5 days),
+        sum199 (sum of the prior 199 closes, for a 200-day SMA with today's price), au/ad (Wilder
+        RSI(2) averages through yesterday)."""
+        if not hasattr(self, "_hist"):
+            self._build_hist()
+        h = self._hist.get(symbol)
+        if h is None:
+            return None
+        i = h["idx"].get(date)
+        if i is None or i < need or h["splits"][i] > 0 or not np.isfinite(h["ad"][i - 1]):
+            return None
+        c = h["c"]
+        return {"c1": c[i - 1], "c2": c[i - 2], "c3": c[i - 3], "h1": h["h"][i - 1],
+                "low5": h["l"][i - 5:i].min(), "sum199": c[max(0, i - 199):i].sum(),
+                "au": h["au"][i - 1], "ad": h["ad"][i - 1]}
+
+    def _build_hist(self):
+        d = self.base.daily_frame()[["symbol", "date", "o", "h", "l", "c"]].copy()
+        d["symbol"] = d["symbol"].astype(str)
+        keep = {s for s, _ in self._snap}
+        d = d[d["symbol"].isin(keep)].sort_values(["symbol", "date"])
+        self._hist = {}
+        for sym, g in d.groupby("symbol", sort=False):
+            o, hi, lo, c = (g[k].to_numpy(float) for k in ("o", "h", "l", "c"))
+            n = len(c)
+            pc = np.r_[np.nan, c[:-1]]
+            split = (np.abs(o / pc - 1) > SPLIT_GAP).astype(float)
+            split[0] = 0.0
+            cs = np.cumsum(split)
+            recent = cs - np.r_[np.zeros(201), cs[:-201]] if n > 201 else cs  # split gaps in the last 201 days
+            au, ad = np.full(n, np.nan), np.full(n, np.nan)
+            dlt = np.diff(c)
+            if n > 3:
+                a, b = np.clip(dlt[:2], 0, None).mean(), np.clip(-dlt[:2], 0, None).mean()
+                au[2], ad[2] = a, b
+                for k in range(3, n):
+                    x = dlt[k - 1]
+                    a, b = (a + max(x, 0.0)) / 2, (b + max(-x, 0.0)) / 2
+                    au[k], ad[k] = a, b
+            self._hist[sym] = {"idx": {dd: k for k, dd in enumerate(g["date"])}, "c": c, "h": hi, "l": lo,
+                               "au": au, "ad": ad, "splits": recent}
+
 
 # ---- engine ----------------------------------------------------------------------------------
 @dataclass
@@ -198,6 +243,7 @@ class DailyEngine:
 
     def run(self, data: DailyData, start=None, end=None) -> BacktestResult:
         self.__dict__.pop("_v", None); self.__dict__.pop("_exit_mode", None); self.__dict__.pop("_cal", None)
+        self._sv, self._exit_modes = {}, {}
         cash = float(self.cfg["account"]["starting_equity"])
         positions: dict[str, Pos] = {}
         rows, trades, decisions = [], [], []
@@ -243,6 +289,9 @@ class DailyEngine:
             if self.kind == "spy_rules":  # a combined account may switch between overnight and multi-day holds
                 for ps in positions.values():
                     ps.exit_rule = self._exit_rule()
+            if self.kind == "stock_rules":
+                for sym, ps in positions.items():
+                    ps.exit_rule = self._exit_modes.get(sym, "rule")
             # 4) mark to market at the close
             value = 0.0
             for sym, ps in positions.items():
@@ -279,6 +328,8 @@ class DailyEngine:
             return self.p.get("exit", "next_open")
         if self.kind == "spy_rules":
             return getattr(self, "_exit_mode", "rule")
+        if self.kind == "stock_rules":
+            return "rule"
         return "rule"
 
     def _decide(self, data, date, positions, equity) -> list[tuple[str, str, int]]:
@@ -310,6 +361,8 @@ class DailyEngine:
             return orders
         if self.kind == "spy_rules":
             return self._rules(data, date, positions, equity)
+        if self.kind == "stock_rules":
+            return self._stock_rules(data, date, positions, equity)
         if self.kind == "reversal":
             c = data.candidates(date)
             if c is None or c.empty:
@@ -392,6 +445,87 @@ class DailyEngine:
         if rule == "down3_overnight":
             return True
         return c["snap"] > c["highs"][-1]  # ibs, turnaround_tue, five_day_low, rsi2_high
+
+    def _stock_rules(self, data, date, positions, equity) -> list[tuple[str, str, int]]:
+        """Batch I: the SPY swing rules on individual large caps. Each (stock, rule) keeps its own
+        in/out state; a stock is held while any of its rules is in. At most max_positions stocks,
+        equal slices of equity; new entries ranked by RSI(2), most oversold first."""
+        p = self.p
+        rules = list(p["rules"])
+        sma = int(p.get("sma_trend", 0))
+        nmax = int(p["max_positions"])
+        need = 205 if sma else 10
+        orders = []
+        self._sv = {k: v for k, v in self._sv.items() if k in positions}
+
+        def rsi2(st, snap):
+            x = snap - st["c1"]
+            a, b = (st["au"] + max(x, 0.0)) / 2, (st["ad"] + max(-x, 0.0)) / 2
+            return 100.0 if b == 0 else 100 - 100 / (1 + a / b)
+
+        def entry(rule, st, snap):
+            if rule == "down3_overnight":
+                return snap < st["c1"] < st["c2"] < st["c3"]
+            if rule == "five_day_low":
+                return snap < st["low5"]
+            if rule == "rsi2_high":
+                return rsi2(st, snap) < float(p.get("rsi_entry", 10))
+            if rule == "turnaround_tue":
+                return date.weekday() == 0 and snap < st["c1"]
+            raise ValueError(f"Unknown stock rule {rule}")
+
+        # exits for held stocks
+        for sym in list(positions):
+            b = data.bar(date, sym)
+            if b is None or b[1] is None:
+                continue  # no 3:50 pm price today (half-day or gap in data): decide tomorrow
+            st = data.stock_state(sym, date, need)
+            v = self._sv.setdefault(sym, {r: False for r in rules})
+            v["down3_overnight"] = False
+            if st is None:  # history broken (e.g. a split while held): get out
+                orders.append((sym, "sell", 0))
+                self._sv.pop(sym, None)
+                continue
+            for r in rules:
+                if v[r] and r != "down3_overnight" and b[1] > st["h1"]:
+                    v[r] = False
+            if not any(v.values()):
+                orders.append((sym, "sell", 0))
+                self._sv.pop(sym, None)
+        selling = {o[0] for o in orders}
+        # held stocks can pick up more rules (keeps them in longer)
+        for sym in positions:
+            if sym in selling:
+                continue
+            b = data.bar(date, sym)
+            st = data.stock_state(sym, date, need) if b is not None and b[1] is not None else None
+            if st is not None:
+                for r in rules:
+                    if not self._sv[sym][r] and entry(r, st, b[1]):
+                        self._sv[sym][r] = True
+        # new entries
+        free = nmax - (len(positions) - len(selling))
+        if free > 0:
+            c = data.candidates(date)
+            cands = []
+            for sym, snap in zip(c["symbol"], c["snap"]) if c is not None and not c.empty else []:
+                if sym in positions or snap <= float(p.get("min_price", 5.0)):
+                    continue
+                st = data.stock_state(sym, date, need)
+                if st is None or (sma and snap <= (st["sum199"] + snap) / 200):
+                    continue
+                hit = [r for r in rules if entry(r, st, snap)]
+                if hit:
+                    cands.append((rsi2(st, snap), sym, snap, hit))
+            for _, sym, snap, hit in sorted(cands)[:free]:
+                shares = math.floor(equity * self.max_lev / nmax / snap)
+                if shares >= 1:
+                    orders.append((sym, "buy", shares))
+                    self._sv[sym] = {r: (r in hit) for r in rules}
+        # exit at the next open only when the overnight rule is the only one in
+        for sym, v in self._sv.items():
+            self._exit_modes[sym] = "next_open" if [r for r in rules if v[r]] == ["down3_overnight"] else "rule"
+        return orders
 
     @staticmethod
     def _rsi5(closes):  # RSI(5) today, 1, 2 and 3 days ago

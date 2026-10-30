@@ -46,7 +46,7 @@ All tune results are 2016–2021, net of costs. "Best" = best setting in its pre
 | Gap-and-go without ETFs/ETNs (F2) | fail: 0.27–0.69 across the 9 settings (with funds 0.28–0.62); best 3% gap / 11:30, costs doubled 0.27 | — | — |
 | QuantifiedStrategies daily rules (G), SPY | fail, all below Sharpe 1.0: turn of month 0.92 (70 trades, DD −8.7%), IBS 0.86 (11.1%/yr, DD −17%), 3-down overnight 0.73, turnaround Tue 0.61, RSI(2) 0.58, 5-day low 0.45, triple RSI −0.16 (15 trades). Costs barely matter (few trades) | — | — |
 | Same, QQQ (G) | fail: IBS 0.86 (12.8%/yr, DD −20%), RSI(2) 0.46 | — | — |
-| Classic rules combined (H): H3 turn of month + IBS + 3-down, one SPY account | **pass**: Sharpe 1.03, 15.5%/yr (SPY 15.4%), DD −17.7%, 152 trades, beta 0.69, costs doubled 1.01. But 2020 alone +53% (SPY +16%); 2021 +6.6% vs +27%. PBO 71% across 12 variants | validate run next | — |
+| Classic rules combined (H): H3 turn of month + IBS + 3-down, one SPY account | **pass**: Sharpe 1.03, 15.5%/yr (SPY 15.4%), DD −17.7%, 152 trades, beta 0.69, costs doubled 1.01. But 2020 alone +53% (SPY +16%); 2021 +6.6% vs +27%. PBO 71% across 12 variants | fail on the letter (59 trades < 100; Sharpe 0.90), but 14.5%/yr, DD −11%, alpha t 2.5: 2022 +2.1% (SPY −19.5%), 2023 +28.2% (SPY +24.3%) | — |
 | Combined H1 (9 sleeves) / H2 (7 SPY rules) / H4 (SPY + QQQ halves) | fail: 0.79 / 0.77 / 0.85 | — | — |
 | ORB + TA filters (#2), ticks | fail: SMA −1.45, RSI −2.80, MACD −1.85, Bollinger −1.88 | — | — |
 | Gap-and-go on large caps (#7) | fail: all 9 settings positive (0.28–0.62) but none clears Sharpe 1.0; ~0 with costs doubled | — | — |
@@ -433,6 +433,29 @@ Why:                Brandon asked to run them all at once. Each rule alone is in
                     together they are invested more often.
 Kill criteria:      Scorecard on tune 2016-2021, including beating SPY risk-adjusted. 4 trials,
                     counted. Survivors get one validate run 2022-2023.
+Registered:         2026-10-30
+```
+
+## Batch I: the swing rules on individual large caps (registered 2026-10-30)
+```
+Rule:               Top 500 stocks by prior dollar volume (ETFs/ETNs excluded), price > $5.
+                    At 3:50 pm each (stock, rule) is checked on its own; a stock is held while any
+                    of its rules is in, at most max_positions stocks in equal slices (1x, no
+                    margin); new entries go to the most oversold by RSI(2). Rules as in batch G:
+                    3 lower closes (exit next open, unless another rule is also in), price below
+                    the prior 5-day low, RSI(2) < 10, down Monday; exits at price > yesterday's
+                    high. IBS and turn of month aren't used: IBS needs each stock's 9:30-3:50 range
+                    (not downloaded), and turn of month on 500 stocks is just the index.
+                    Stocks with a split-like gap in the prior 200 days are skipped; a held stock
+                    whose history breaks is sold.
+  I1 three rules (3-down, 5-day low, RSI(2)), above 200-day SMA, 10 positions
+  I2 same, no trend filter
+  I3 RSI(2) only, above 200-day SMA, 10 positions (the classic Connors stock version)
+  I4 all four rules, above 200-day SMA, 20 positions
+Why:                Brandon asked to run H3's idea on the stocks in the index.
+Kill criteria:      Scorecard on tune 2016-2021 (the 3:50 pm snapshots cover it). 4 trials, counted.
+                    Survivors get one validate run after the snapshot download finishes 2022-2023.
+                    No earnings-date filter (no earnings calendar in the data).
 Registered:         2026-10-30
 ```
 

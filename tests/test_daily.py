@@ -98,6 +98,9 @@ class Poisoned:
         later, today = d["date"] > cut, d["date"] == cut
         d.loc[later, ["o", "c"]] *= rng.uniform(0.7, 1.3, (later.sum(), 2))
         d.loc[today, "c"] *= rng.uniform(0.7, 1.3, today.sum())
+        # the day's full high and low aren't known at 3:50 pm either
+        d.loc[later | today, "h"] *= rng.uniform(1.0, 1.3, (later | today).sum())
+        d.loc[later | today, "l"] *= rng.uniform(0.7, 1.0, (later | today).sum())
         self._daily = d
         s = base.snapshots()
         lat = s["date"] > cut
@@ -227,3 +230,34 @@ def test_combined_account_is_in_whenever_any_rule_is():
     # exit and another's entry fall on the same close)
     assert (held(combo) == either).mean() > 0.97
     assert combo.daily["leverage"].max() <= 1.02
+
+
+STOCK_RULES = ["down3_overnight", "five_day_low", "rsi2_high", "turnaround_tue"]
+
+
+@pytest.mark.parametrize("sma,rules", [(0, STOCK_RULES), (50, STOCK_RULES)] + [(0, [r]) for r in STOCK_RULES])
+def test_stock_rules_no_lookahead_and_limits(sma, rules):
+    m = SyntheticOrbData(n_days=320, n_symbols=40, seed=5, momentum=0.0)
+    c = cfg("stock_rules", large_cap_rank=30, min_price=1.0, sma_trend=sma, max_positions=5, rules=rules)
+    clean = DailyEngine(c).run(UniverseDaily(m, m.snapshots(), 30, 1.0))
+    t = clean.trades
+    assert len(t) > 20
+    assert clean.daily["leverage"].max() <= 1.05
+    for cut_idx in range(215, 315, 6):
+        cut = m.dates[cut_idx]
+        p = Poisoned(m, cut)
+        dirty = DailyEngine(c).run(UniverseDaily(p, p._snaps, 30, 1.0))
+        before = lambda r: [k for k in r.decision_keys() if k[0] < cut or (k[0] == cut and k[1] <= SNAP_BAR)]
+        assert before(clean) == before(dirty) and len(before(clean)) > 20, cut
+
+
+def test_stock_rules_position_cap():
+    m = SyntheticOrbData(n_days=320, n_symbols=40, seed=5, momentum=0.0)
+    c = cfg("stock_rules", large_cap_rank=30, min_price=1.0, sma_trend=0, max_positions=3,
+            rules=["down3_overnight", "five_day_low", "rsi2_high"])
+    res = DailyEngine(c).run(UniverseDaily(m, m.snapshots(), 30, 1.0))
+    t = res.trades
+    for d in m.dates[20:300:5]:
+        ent, ex = pd.to_datetime(t["entry_date"]), pd.to_datetime(t["date"])
+        open_n = ((ent <= pd.Timestamp(d)) & (ex > pd.Timestamp(d))).sum()
+        assert open_n <= 3
