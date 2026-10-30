@@ -88,7 +88,7 @@ jobs:
 
       - name: Download new SPY data from Alpaca
         if: inputs.command != 'synthetic-check' && inputs.command != 'ticks' && (startsWith(inputs.strategy, 'spy') || inputs.command == 'research')
-        run: python -m daytrader download --config config/spy_noise.yaml --symbols SPY,QQQ,IWM,DIA,UPRO
+        run: python -m daytrader download --config config/spy_noise.yaml --symbols SPY,QQQ,IWM,DIA,UPRO,XLK,XLF,XLE,XLV,XLI,XLY,XLP,XLU,XLB
 
       - name: Download new stocks-in-play data from Alpaca
         # The stocks-in-play download is large; it stops cleanly at its budget and resumes next run.

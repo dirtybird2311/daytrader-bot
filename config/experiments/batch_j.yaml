@@ -1,0 +1,62 @@
+# Research batch J: H3's three rules (turn of month, IBS, 3-down overnight; in while ANY is in)
+# on more funds, one equal slice each. Pre-registered in RESEARCH.md.
+name: batch_j
+experiments:
+  - name: j1_four_index_funds
+    portfolio:
+      - {config: config/spy_rules.yaml, set: {symbol: SPY, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: QQQ, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: IWM, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: DIA, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+  - name: j2_index_plus_sectors
+    portfolio:
+      - {config: config/spy_rules.yaml, set: {symbol: SPY, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: QQQ, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: IWM, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: DIA, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: XLK, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: XLF, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: XLE, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: XLV, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: XLI, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: XLY, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: XLP, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: XLU, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+      - {config: config/spy_rules.yaml, set: {symbol: XLB, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}}
+  # each fund alone, for the per-fund table (not scored as separate trials)
+  - name: j_single_qqq
+    config: config/spy_rules.yaml
+    set: {symbol: QQQ, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}
+  - name: j_single_iwm
+    config: config/spy_rules.yaml
+    set: {symbol: IWM, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}
+  - name: j_single_dia
+    config: config/spy_rules.yaml
+    set: {symbol: DIA, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}
+  - name: j_single_xlk
+    config: config/spy_rules.yaml
+    set: {symbol: XLK, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}
+  - name: j_single_xlf
+    config: config/spy_rules.yaml
+    set: {symbol: XLF, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}
+  - name: j_single_xle
+    config: config/spy_rules.yaml
+    set: {symbol: XLE, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}
+  - name: j_single_xlv
+    config: config/spy_rules.yaml
+    set: {symbol: XLV, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}
+  - name: j_single_xli
+    config: config/spy_rules.yaml
+    set: {symbol: XLI, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}
+  - name: j_single_xly
+    config: config/spy_rules.yaml
+    set: {symbol: XLY, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}
+  - name: j_single_xlp
+    config: config/spy_rules.yaml
+    set: {symbol: XLP, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}
+  - name: j_single_xlu
+    config: config/spy_rules.yaml
+    set: {symbol: XLU, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}
+  - name: j_single_xlb
+    config: config/spy_rules.yaml
+    set: {symbol: XLB, params.rule: any, params.rules: [turn_of_month, ibs, down3_overnight]}

@@ -460,3 +460,17 @@ Kill criteria:      Scorecard on tune 2016-2021 (the 3:50 pm snapshots cover it)
 Registered:         2026-10-30
 ```
 
+## Batch J: H3 on more funds (registered 2026-10-30)
+```
+Rule:               H3 unchanged (turn of month + IBS + 3-down overnight; a fund is held at its
+                    slice while any of the three is in), run on each fund in its own equal slice:
+  J1 SPY, QQQ, IWM, DIA (1/4 each)
+  J2 those plus the nine SPDR sectors XLK XLF XLE XLV XLI XLY XLP XLU XLB (1/13 each)
+                    Single-fund runs are reported for the table, not scored as trials.
+Why:                Brandon wants more trades. Same rules on more funds adds signals on different
+                    days without loosening any threshold.
+Kill criteria:      Scorecard on tune 2016-2021. 2 trials, counted. A survivor gets one validate
+                    run 2022-2023. Idle cash in each slice earns nothing (no shared pool yet).
+Registered:         2026-10-30
+```
+
