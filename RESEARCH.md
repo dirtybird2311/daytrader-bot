@@ -289,3 +289,57 @@ C4 Stop check:      trailing stop checked every minute instead of every 30 (the 
 Validate:           anything kept from C1/C4, once, on 2022-2023.
 Registered:         2026-10-29
 ```
+
+## Batch D: holding overnight to a few days (registered 2026-10-30)
+
+Common to all three: decide at 3:50 pm ET (10 minutes before the close, the deadline for
+market-on-close orders) using prices up to 3:50 pm; fill entries and close-exits at the official
+close, open-exits at the next official open; slippage $0.01/share each side plus $0.0035/share
+commission; long only, no margin (at most 1x equity); half-days skipped (no 3:50 pm price).
+Prices are raw: an overnight gap over 40% counts as a split; its ratio is snapped to the nearest
+common split ratio for P&L, and such stocks are never picked on the gap day.
+
+Holdout note: rule 5 says ideas after the holdout is spent are judged on new data. These three
+have never been run on 2024+, but we already know how markets behaved then. A 2024+ score for
+them is therefore weaker evidence than a clean holdout; the real judge is live trading.
+
+### D1 SPY overnight hold
+```
+Rule:               Every day buy SPY at the close, sell at the next open. Size 1x equity at the
+                    3:50 pm price.
+Why it should work: Most of the US equity premium has historically been earned overnight
+                    (Cliff, Cooper & Gulen 2008; Lou, Polk & Skouras 2019); intraday returns
+                    have been near zero or negative.
+Who loses:          Intraday traders and liquidity providers who unwind into the close.
+Defaults:           none.     Sweep: none.
+Kill criteria:      Fails the scorecard on tune, or Sharpe below buy-and-hold SPY's on tune.
+```
+
+### D2 Large-cap one-day reversal
+```
+Rule:               Universe each day: top 500 by 14-day average dollar volume (prior days),
+                    price > $5. At 3:50 pm rank by return from the prior close to 3:50 pm;
+                    buy the 10 biggest losers (must be down) equally at the close.
+                    D2a: sell at the next open. D2b: sell at the next close.
+Why it should work: Short-term reversal (Lehmann 1990; Jegadeesh 1990): big one-day moves in
+                    liquid stocks partly revert as liquidity providers are paid to absorb them
+                    (Nagel 2012). Measuring to 3:50 pm and filling at the close avoids the
+                    bid-ask bounce that inflates close-to-close tests.
+Who loses:          Forced and impatient sellers.
+Defaults:           top 500, 10 names.   Sweep (tune only): n_picks in {5, 10, 20}.
+Kill criteria:      Fails the scorecard on tune, or Sharpe < 0.5 with costs doubled.
+```
+
+### D3 SPY RSI(2) pullback (Connors)
+```
+Rule:               At 3:50 pm, using daily closes with today's 3:50 pm price as today's close:
+                    if flat, RSI(2) < 10 and price > 200-day SMA -> buy at the close.
+                    If long and price > 5-day SMA -> sell at the close. No stop.
+                    Size 1x equity.
+Why it should work: Short pullbacks inside long-term uptrends in index ETFs tend to revert
+                    (Connors & Alvarez 2009). Practitioner evidence; known to have weakened.
+Who loses:          Short-term sellers in a rising market.
+Defaults:           rsi_entry 10, sma_trend 200, sma_exit 5.
+Sweep (tune only):  rsi_entry in {5, 10, 15}.
+Kill criteria:      Fails the scorecard on tune, or fewer than 100 trades.
+```
