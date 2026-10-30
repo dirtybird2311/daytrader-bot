@@ -25,8 +25,8 @@ All tune results are 2016–2021, net of costs. "Best" = best setting in its pre
 
 | Strategy | Tune | Validate | Holdout |
 |---|---|---|---|
-| SPY noise-area momentum, long-only | **pass (Sharpe 1.08)** | **pass (Sharpe 1.67)** | waiting (batch) |
-| **SPY momentum, long-only, stop checked every minute (C4)** | **pass (Sharpe 1.38, DD −7.9%)** | **pass (Sharpe 2.17; 2.23 at 1x)** | waiting (batch) |
+| SPY noise-area momentum, long-only | pass (Sharpe 1.08) | pass (Sharpe 1.67) | **fail: Sharpe 0.39**, 2.9%/yr (2024 +11.6%, 2025 +0.5%, 2026 −3.5%) |
+| SPY momentum, long-only, stop checked every minute (C4) | pass (Sharpe 1.38, DD −7.9%) | pass (Sharpe 2.17; 2.23 at 1x) | **fail: Sharpe 0.82**, 5.3%/yr, DD −7.9% (2024 +13.0%, 2025 +3.4%, 2026 −1.0%); at 1x: 0.83, 2.5%/yr, DD −2.9%. SPY itself: Sharpe 1.21 |
 | SPY momentum long-only at 1x, no margin (C0) | pass (Sharpe 1.06, 3.5%/yr, DD −3.0%) | pass (Sharpe 1.62) | reference |
 | Same rules on QQQ / IWM / DIA (C1) | fail: 0.90 / 0.49 / 0.28; 4-ETF portfolio 0.90 | — | — |
 | SPY signals traded in UPRO, no margin (C2) | fail: Sharpe 0.68 (wider spreads, 3x costs per $) | — | — |
@@ -44,6 +44,17 @@ All tune results are 2016–2021, net of costs. "Best" = best setting in its pre
 
 Batches: `runs/research/phase_a.csv` (bar-based bounds) and `runs/research/phase_b.csv` (tick-resolved
 and the new strategies). Ticks: 24,529 ambiguous entry minutes downloaded; ~94% resolved from prints.
+
+### Holdout verdict (2026-10-30)
+
+Scored once each, 2024-01-02 to 2026-10-29. Both finalists stayed profitable but fail the scorecard
+(Sharpe < 1.0, profit factor < 1.3, below SPY's own Sharpe, negative trailing year). The edge is
+fading year by year: Sharpe 1.67 → 0.61 → −0.17 (4x version). The paper was published in 2024,
+at the start of this window; published anomalies typically weaken afterwards (McLean & Pontiff,
+2016). The every-minute stop still beat the 30-minute stop on unseen data (0.82 vs 0.39).
+
+Per rule 5, the holdout is now spent: any further claim about these strategies needs new data,
+which means live trading at small size or months that accumulate from here.
 
 ## Ranked queue
 
