@@ -1,0 +1,21 @@
+{
+  "run_id": "20261030-105547-a1360a",
+  "period": "holdout",
+  "passed": false,
+  "synthetic": false,
+  "sharpe": 0.388,
+  "annual_return": 0.0285,
+  "max_drawdown": -0.0979,
+  "trades": 341,
+  "checks": {
+    "Closed trades": true,
+    "Sharpe ratio, net of costs": false,
+    "Profit factor": false,
+    "Max drawdown": true,
+    "Beats SPY, risk-adjusted (Sharpe gap)": false,
+    "Sharpe with costs doubled": false,
+    "Positive trailing year": false,
+    "Neighbouring settings also profitable": true
+  },
+  "report": "reports/20261030-105547-a1360a_spy_noise_holdout.html"
+}
