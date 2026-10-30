@@ -183,3 +183,34 @@ def test_fund_names_are_excluded_from_reversal_universe(market):
     drop = set(full["symbol"][:5])
     cut = UniverseDaily(market, market.snapshots(), 30, 1.0, exclude=drop).candidates(d)
     assert drop and not (set(cut["symbol"]) & drop) and 0 < len(cut) <= 30
+
+
+RULES = ["ibs", "turnaround_tue", "turn_of_month", "down3_overnight", "five_day_low", "triple_rsi", "rsi2_high"]
+
+
+@pytest.mark.parametrize("rule", RULES)
+def test_spy_rules_no_lookahead(rule):
+    days = make_days(900 if rule == "triple_rsi" else 320, seed=11, momentum=0.0)
+    c = cfg("spy_rules", rule=rule)
+    clean = DailyEngine(c).run(SpyDaily(days))
+    assert len(clean.trades) >= 3, rule
+    for day_idx in range(60, len(days) - 10, 7 if len(days) < 400 else 19):
+        dirty = DailyEngine(c).run(SpyDaily(poison(days, day_idx, SNAP_BAR + 1)))
+        cut = days[day_idx].date
+        before = lambda r: [k for k in r.decision_keys() if k[0] < cut or (k[0] == cut and k[1] <= SNAP_BAR)]
+        assert before(clean) == before(dirty), f"{rule}: decision changed at {cut}"
+
+
+def test_spy_rules_specifics():
+    days = make_days(320, seed=11, momentum=0.0)
+    t = DailyEngine(cfg("spy_rules", rule="turn_of_month")).run(SpyDaily(days)).trades
+    ent = pd.to_datetime(t["entry_date"])
+    for e, x in zip(ent, pd.to_datetime(t["date"])):
+        same = [d for d in (dd.date for dd in days) if (d.year, d.month) == (e.year, e.month)]
+        assert same.index(e.date()) == len(same) - 5                 # the 5th-last trading day
+        nxt = [d for d in (dd.date for dd in days) if (d.year, d.month) == (x.year, x.month)]
+        assert nxt.index(x.date()) == 2                               # the 3rd trading day
+    t = DailyEngine(cfg("spy_rules", rule="turnaround_tue")).run(SpyDaily(days)).trades
+    assert (pd.to_datetime(t["entry_date"]).dt.weekday == 0).all()
+    t = DailyEngine(cfg("spy_rules", rule="down3_overnight")).run(SpyDaily(days)).trades
+    assert (t["exit_reason"] == "open").all() and (t["days_held"] >= 1).all()

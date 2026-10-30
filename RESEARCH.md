@@ -391,3 +391,30 @@ Kill criteria:      Same scorecard on tune. 14 trials, counted. A survivor gets 
 Registered:         2026-10-30
 ```
 
+## Batch G: classic daily rules from QuantifiedStrategies (registered 2026-10-30)
+Source: Brandon's printout of "200 Trading Strategies (Free) 2026" (quantifiedstrategies.com), a
+list of article titles. The rules below are the standard published versions of the SPY/QQQ daily
+ones on that list, written down before any run; they may differ in detail from each article.
+```
+Rules (decide at 3:50 pm, fill at the close; "price" = 3:50 pm price; long-only, 1x, no margin):
+  ibs             IBS = (price - today's low) / (today's high - low) < 0.2 -> buy;
+                  sell when price > yesterday's high                          (SPY, QQQ)
+  turnaround_tue  Monday and price < Friday's close -> buy; sell when price > yesterday's high
+  turn_of_month   buy on the 5th-last trading day of the month; sell on the 3rd trading day
+  down3_overnight three lower closes in a row (today's at 3:50 pm) -> buy at the close, sell at
+                  the next open
+  five_day_low    price < lowest low of the prior 5 days -> buy; sell when price > yesterday's high
+  triple_rsi      RSI(5) < 30, RSI(5) lower 3 days running, RSI(5) 3 days ago < 60, price above the
+                  200-day SMA -> buy; sell when RSI(5) > 50
+  rsi2_high       RSI(2) < 10 -> buy; sell when price > yesterday's high          (SPY, QQQ)
+Costs:              $0.0035 commission + 1 cent slippage per share each side.
+Why:                Brandon asked to test the list. These are the clearly specified SPY/QQQ daily
+                    rules on it; the rest are titles without fixed rules, other markets, or
+                    near-duplicates. Close cousins of D3 (RSI(2) above the 200-day SMA).
+Kill criteria:      Scorecard on tune 2016-2021 (Sharpe > 1, >= 100 trades, beats SPY risk-adjusted,
+                    costs doubled > 0.5, ...). 9 trials, counted with the ~90 before (deflated
+                    Sharpe). A survivor gets one validate run 2022-2023. Their 2024+ data has been
+                    seen (SPY momentum holdout), so a holdout score would be weak evidence.
+Registered:         2026-10-30
+```
+

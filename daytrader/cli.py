@@ -30,7 +30,7 @@ from .strategies import build_strategy
 
 
 UNIVERSE_STRATEGIES = ("orb", "gapgo", "dip", "reversal")
-DAILY_SPY_STRATEGIES = ("spy_overnight", "spy_rsi2")
+DAILY_SPY_STRATEGIES = ("spy_overnight", "spy_rsi2", "spy_rules")
 
 
 class Runner:

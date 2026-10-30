@@ -1,0 +1,13 @@
+# Research batch G: classic daily rules from QuantifiedStrategies' "200 Trading Strategies" list,
+# standard published versions, no tuning. Pre-registered in RESEARCH.md.
+name: batch_g
+experiments:
+  - name: g_spy
+    config: config/spy_rules.yaml
+    grid:
+      params.rule: [ibs, turnaround_tue, turn_of_month, down3_overnight, five_day_low, triple_rsi, rsi2_high]
+  - name: g_qqq
+    config: config/spy_rules.yaml
+    set: {symbol: QQQ}
+    grid:
+      params.rule: [ibs, rsi2_high]

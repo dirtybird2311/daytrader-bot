@@ -15,6 +15,17 @@ Strategies (cfg["strategy"]):
   spy_overnight   buy SPY at the close, sell at the next open
   spy_rsi2        RSI(2) pullback above the 200-day SMA, exit above the 5-day SMA
   reversal        buy the n biggest large-cap losers (prior close -> 3:50 pm) at the close
+  spy_rules       batch G: classic daily rules from QuantifiedStrategies' list (params.rule):
+                    ibs            buy when IBS < ibs_entry; sell when price > yesterday's high
+                    turnaround_tue on Monday, if below Friday's close, buy; sell > yesterday's high
+                    turn_of_month  buy on the 5th-last trading day; sell on the 3rd trading day
+                    down3_overnight after 3 down closes, buy at the close, sell at the next open
+                    five_day_low   buy when price < the lowest low of the prior 5 days; sell > yesterday's high
+                    triple_rsi     Connors: RSI(5) < 30, falling 3 days, below 60 three days ago,
+                                   above the 200-day SMA; sell when RSI(5) > 50
+                    rsi2_high      RSI(2) < rsi_entry; sell when price > yesterday's high
+                  "price" and "today's high/low" are the 3:50 pm price and the 9:30-3:50 range.
+                  The trading calendar (which days are trading days) is known in advance.
 """
 
 from __future__ import annotations
@@ -73,6 +84,10 @@ class SpyDaily(DailyData):
         self._o = np.array([d.open[0] for d in days], float)
         self._c = np.array([d.close[-1] for d in days], float)
         self._s = np.array([d.close[SNAP_BAR] if d.n == 390 else np.nan for d in days], float)
+        self._h = np.array([d.high.max() for d in days], float)
+        self._l = np.array([d.low.min() for d in days], float)
+        self._hs = np.array([d.high[:SNAP_BAR + 1].max() if d.n == 390 else np.nan for d in days], float)
+        self._ls = np.array([d.low[:SNAP_BAR + 1].min() if d.n == 390 else np.nan for d in days], float)
         self._idx = {d: i for i, d in enumerate(self.dates)}
 
     def bar(self, date, symbol):
@@ -85,6 +100,14 @@ class SpyDaily(DailyData):
     def closes_before(self, symbol, date, n):
         i = self._idx[date]
         return self._c[max(0, i - n):i]
+
+    def highs_lows_before(self, date, n):
+        i = self._idx[date]
+        return self._h[max(0, i - n):i], self._l[max(0, i - n):i]
+
+    def range_to_snap(self, date):
+        i = self._idx[date]
+        return float(self._hs[i]), float(self._ls[i])
 
     def market(self, date):
         i = self._idx[date]
@@ -250,6 +273,8 @@ class DailyEngine:
             return "next_open"
         if self.kind == "reversal":
             return self.p.get("exit", "next_open")
+        if self.kind == "spy_rules" and self.p["rule"] == "down3_overnight":
+            return "next_open"
         return "rule"
 
     def _decide(self, data, date, positions, equity) -> list[tuple[str, str, int]]:
@@ -279,6 +304,8 @@ class DailyEngine:
                 if rsi < float(self.p["rsi_entry"]) and snap > closes[-int(self.p["sma_trend"]):].mean():
                     orders.append((sym, "buy", math.floor(equity * self.max_lev / snap)))
             return orders
+        if self.kind == "spy_rules":
+            return self._rules(data, date, positions, equity)
         if self.kind == "reversal":
             c = data.candidates(date)
             if c is None or c.empty:
@@ -292,6 +319,67 @@ class DailyEngine:
                     orders.append((sym, "buy", math.floor(budget / snap)))
             return orders
         raise ValueError(f"Unknown daily strategy {self.kind}")
+
+    def _month_position(self, data, date) -> tuple[int, int]:
+        """(trading day of month, 1-based; trading days left after today) from the known calendar."""
+        if not hasattr(self, "_cal"):
+            ds = pd.Series(pd.to_datetime(data.dates))
+            key = ds.dt.year * 12 + ds.dt.month
+            first = ds.groupby(key).cumcount() + 1
+            left = ds.groupby(key).transform("size") - first
+            self._cal = {d: (int(f), int(l)) for d, f, l in zip(data.dates, first, left)}
+        return self._cal[date]
+
+    def _rules(self, data, date, positions, equity) -> list[tuple[str, str, int]]:
+        sym = getattr(data, "symbol", "SPY")
+        b = data.bar(date, sym)
+        if b is None or b[1] is None:
+            return []
+        snap, rule, p = b[1], self.p["rule"], self.p
+        closes = np.append(data.closes_before(sym, date, 260), snap)
+        highs, lows = data.highs_lows_before(date, 6)
+        if len(closes) < 30 or len(highs) < 6:
+            return []
+        held = sym in positions
+        buy = lambda: [(sym, "buy", math.floor(equity * self.max_lev / snap))]
+        above_yhigh = snap > highs[-1]
+        if rule == "ibs":
+            h, l = data.range_to_snap(date)
+            ibs = (snap - l) / (h - l) if h > l else 0.5
+            if held:
+                return [(sym, "sell", 0)] if above_yhigh else []
+            return buy() if ibs < float(p.get("ibs_entry", 0.2)) else []
+        if rule == "turnaround_tue":
+            if held:
+                return [(sym, "sell", 0)] if above_yhigh else []
+            return buy() if date.weekday() == 0 and snap < closes[-2] else []
+        if rule == "turn_of_month":
+            day_no, left = self._month_position(data, date)
+            if held:
+                return [(sym, "sell", 0)] if day_no == int(p.get("exit_day", 3)) else []
+            return buy() if left == int(p.get("entry_days_left", 4)) else []  # 5th-last day: 4 days left after it
+        if rule == "down3_overnight":
+            if held:
+                return []
+            d = np.diff(closes[-4:])
+            return buy() if (d < 0).all() else []
+        if rule == "five_day_low":
+            if held:
+                return [(sym, "sell", 0)] if above_yhigh else []
+            return buy() if snap < lows[-5:].min() else []
+        if rule == "triple_rsi":
+            if len(closes) < 201:
+                return []
+            r = [rsi_wilder(closes[max(0, len(closes) - 100 - k):len(closes) - k], 5) for k in range(4)]  # today, 1, 2, 3 days ago
+            if held:
+                return [(sym, "sell", 0)] if r[0] > 50 else []
+            ok = r[0] < 30 and r[0] < r[1] < r[2] < r[3] and r[3] < 60 and snap > closes[-200:].mean()
+            return buy() if ok else []
+        if rule == "rsi2_high":
+            if held:
+                return [(sym, "sell", 0)] if above_yhigh else []
+            return buy() if rsi_wilder(closes[-60:], 2) < float(p.get("rsi_entry", 10)) else []
+        raise ValueError(f"Unknown spy_rules rule {rule}")
 
     def _trade(self, ps: Pos, date, exit_bar, px, how) -> dict:
         gross = (px - ps.entry_px) * ps.shares

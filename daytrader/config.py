@@ -55,7 +55,7 @@ def _validate(cfg: dict[str, Any]) -> None:
     if missing:
         raise ValueError(f"Config missing sections: {missing}")
     p = cfg["params"]
-    if cfg["strategy"] not in ("orb", "gapgo", "dip", "reversal", "spy_overnight", "spy_rsi2") \
+    if cfg["strategy"] not in ("orb", "gapgo", "dip", "reversal", "spy_overnight", "spy_rsi2", "spy_rules") \
             and cfg["costs"]["fill_delay_bars"] < 1:
         raise ValueError("costs.fill_delay_bars must be >= 1 (no same-bar fills)")
     if cfg["strategy"] == "spy_noise":
