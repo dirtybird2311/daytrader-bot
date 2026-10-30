@@ -26,6 +26,11 @@ All tune results are 2016–2021, net of costs. "Best" = best setting in its pre
 | Strategy | Tune | Validate | Holdout |
 |---|---|---|---|
 | SPY noise-area momentum, long-only | **pass (Sharpe 1.08)** | **pass (Sharpe 1.67)** | waiting (batch) |
+| **SPY momentum, long-only, stop checked every minute (C4)** | **pass (Sharpe 1.38, DD −7.9%)** | **pass (Sharpe 2.17; 2.23 at 1x)** | waiting (batch) |
+| SPY momentum long-only at 1x, no margin (C0) | pass (Sharpe 1.06, 3.5%/yr, DD −3.0%) | pass (Sharpe 1.62) | reference |
+| Same rules on QQQ / IWM / DIA (C1) | fail: 0.90 / 0.49 / 0.28; 4-ETF portfolio 0.90 | — | — |
+| SPY signals traded in UPRO, no margin (C2) | fail: Sharpe 0.68 (wider spreads, 3x costs per $) | — | — |
+| SPY momentum with Robinhood costs (C3) | Sharpe 1.07 (costs ≈ the paper's assumption) | — | — |
 | SPY noise-area momentum, long + short | fail (Sharpe 0.93, DD 28%) | — | — |
 | SPY momentum + volatility regime filter (#5) | dropped: Sharpe 1.05 / 0.87 / 0.75 at p = 10 / 25 / 40, below the unfiltered 1.08 | — | — |
 | SPY first half hour → last half hour (#6) | fail: Sharpe −1.14 (long-only −1.33) | — | — |
