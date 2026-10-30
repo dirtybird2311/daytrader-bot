@@ -61,8 +61,10 @@ class Runner:
             if snaps.empty:
                 sys.exit("No 3:50 pm snapshots yet. Run the stocks-in-play download (it adds them).")
             if not hasattr(self, "_universe_daily"):
+                from .data.universe import fund_symbols
+                funds = fund_symbols(getattr(self.data, "root", "")) if cfg["params"].get("exclude_funds", True) else set()
                 self._universe_daily = UniverseDaily(self.data, snaps, int(cfg["params"]["large_cap_rank"]),
-                                                     float(cfg["params"]["min_price"]))
+                                                     float(cfg["params"]["min_price"]), funds)
             self.last_engine = DailyEngine(cfg)
             return self.last_engine.run(self._universe_daily, start, end)
         if cfg["strategy"] in DAILY_SPY_STRATEGIES:

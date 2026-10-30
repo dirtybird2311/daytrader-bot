@@ -96,8 +96,10 @@ class SpyDaily(DailyData):
 class UniverseDaily(DailyData):
     """Stocks-in-play cache (daily bars, features, SPY) plus 3:50 pm snapshots."""
 
-    def __init__(self, orb_data, snaps: pd.DataFrame, large_cap_rank: int = 500, min_price: float = 5.0):
+    def __init__(self, orb_data, snaps: pd.DataFrame, large_cap_rank: int = 500, min_price: float = 5.0,
+                 exclude: set | None = None):
         self.base = orb_data
+        self.exclude = set(exclude or ())  # ETFs/ETNs: not stocks, and leveraged ones decay overnight
         self.dates = list(orb_data.dates)
         d = orb_data.daily_frame()[["symbol", "date", "o", "c"]].copy()
         d["symbol"] = d["symbol"].astype(str)
@@ -119,6 +121,8 @@ class UniverseDaily(DailyData):
             return f
         f = f[["symbol", "prev_close", "avg_volume"]].copy()
         f["symbol"] = f["symbol"].astype(str)
+        if self.exclude:
+            f = f[~f["symbol"].isin(self.exclude)]
         f["dv_rank"] = (f["avg_volume"] * f["prev_close"]).rank(ascending=False, method="first")
         f = f[f["dv_rank"] <= self.rank]
         f["open"] = [self._oc.get((s, date), (np.nan, np.nan))[0] for s in f["symbol"]]

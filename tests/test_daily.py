@@ -168,3 +168,18 @@ def test_split_while_held_keeps_value():
     # bought at 98, 2-for-1 split overnight, sold at 50 on day 2 -> 2 x 50 = 100 per original share
     assert t["exit_px"] == pytest.approx(50) and t["entry_px"] == pytest.approx(49)
     assert res.daily["equity"].iloc[1] / res.daily["equity"].iloc[0] == pytest.approx(100 / 98, rel=1e-3)
+
+
+def test_fund_names_are_excluded_from_reversal_universe(market):
+    from daytrader.data.universe import is_fund
+    funds = ["ProShares Ultra VIX Short-Term Futures ETF", "Direxion Daily Semiconductor Bull 3X Shares",
+             "iShares Silver Trust", "VelocityShares Daily Inverse VIX Short-Term ETN", "SPDR S&P 500 ETF Trust",
+             "Invesco QQQ Trust, Series 1", "United States Oil Fund"]
+    stocks = ["Apple Inc. Common Stock", "Invesco Ltd", "The Charles Schwab Corporation Common Stock",
+              "Ultra Clean Holdings, Inc. Common Stock", "Bull Run Corp", "WisdomTree, Inc. Common Stock"]
+    assert all(is_fund(n) for n in funds) and not any(is_fund(n) for n in stocks)
+    d = market.dates[50]
+    full = UniverseDaily(market, market.snapshots(), 30, 1.0).candidates(d)
+    drop = set(full["symbol"][:5])
+    cut = UniverseDaily(market, market.snapshots(), 30, 1.0, exclude=drop).candidates(d)
+    assert drop and not (set(cut["symbol"]) & drop) and 0 < len(cut) <= 30

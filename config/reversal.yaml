@@ -18,6 +18,7 @@ params:
   min_price: 5.0
   n_picks: 10              # biggest losers from the prior close to 3:50 pm
   exit: next_open          # next_open (D2a) | next_close (D2b)
+  exclude_funds: true      # drop ETFs/ETNs by name (fix after the first D2 run; see RESEARCH.md)
 
 sizing:
   max_leverage: 1.0

@@ -15,6 +15,8 @@ what was knowable at 9:35 that morning. It is pure and separately leak-tested.
 
 from __future__ import annotations
 
+import re
+
 import datetime as dt
 import json
 import time
@@ -153,6 +155,33 @@ def clean_assets(a: pd.DataFrame) -> pd.DataFrame:
     """Real tickers only (e.g. AAPL, BRK.B); drops escrow/CVR/rights placeholders like 003CVR016."""
     keep = a["exchange"].isin(EXCHANGES) & a["symbol"].astype(str).str.fullmatch(r"[A-Z]{1,5}(\.[A-Z]{1,2})?")
     return a[keep].drop_duplicates("symbol").reset_index(drop=True)
+
+
+# Words that only fund names use, and issuer brands that appear in fund names
+FUND_WORDS = re.compile(
+    r"\b(ETF|ETN|ETNS|ETP|ETFS|FUND|PROSHARES|DIREXION|ISHARES|SPDR|IPATH|VELOCITYSHARES|MICROSECTORS|"
+    r"GRANITESHARES|ULTRAPRO|ULTRASHORT|LEVERAGED|INVERSE|[1-3]X|VIX)\b", re.I)
+# ...but an operating company named after its brand (Invesco Ltd, WisdomTree Inc) is a stock
+COMPANY_SUFFIX = re.compile(r"\b(INC|CORP|CORPORATION|LTD|LIMITED|PLC|HOLDINGS|CO|COMPANY|GROUP|N\.?V|S\.?A|AG)\b\.?\s*"
+                            r"(COMMON STOCK|CLASS [A-C].*|ORDINARY SHARES.*)?$", re.I)
+ISSUER_ONLY = re.compile(r"\b(INVESCO|VANGUARD|SCHWAB|WISDOMTREE|VANECK|GLOBAL X|FIRST TRUST|TEUCRIUM)\b", re.I)
+
+
+def is_fund(name: str) -> bool:
+    n = str(name or "")
+    if FUND_WORDS.search(n):
+        return True
+    return bool(ISSUER_ONLY.search(n)) and not COMPANY_SUFFIX.search(n)
+
+
+def fund_symbols(root) -> set[str]:
+    """Exchange-traded products (ETFs/ETNs, including leveraged and volatility products), by name.
+    Alpaca lists them as us_equity, so the large-cap stock universes drop them by name."""
+    path = Path(root) / "assets.parquet" if root else None
+    if path is None or not path.exists():
+        return set()
+    a = pd.read_parquet(path, columns=["symbol", "name"])
+    return {str(s) for s, n in zip(a["symbol"], a["name"]) if is_fund(n)}
 
 
 def sync_assets(client, root: Path, log=print) -> pd.DataFrame:

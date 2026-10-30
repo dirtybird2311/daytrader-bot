@@ -39,6 +39,9 @@ All tune results are 2016–2021, net of costs. "Best" = best setting in its pre
 | ORB opening range 1 / 15 / 30 min (#3), ticks | fail: −1.11 / −2.60 / −3.15 | — | — |
 | ORB VWAP exit (#4), ticks | fail: −3.23 / −0.89 / −0.80 at stop 0.1 / 0.5 / 1.0 ATR | — | — |
 | ORB wider stops (E1), ticks | fail: −0.30 / −0.16 / +0.08 at stop 0.25 / 0.5 / 1.0 ATR; costs doubled −2.83 / −2.15 / −1.68. Implied before costs ≈ 2.2 / 1.8 / 1.8 | — | — |
+| SPY overnight hold (D1) | fail: Sharpe 0.66, 7.6%/yr, DD −30%, beta 0.50; buy-and-hold SPY was better | — | — |
+| SPY RSI(2) pullback (D3) | fail: 23 / 45 / 65 trades at RSI < 5 / 10 / 15 (needs 100); Sharpe 0.33 / 0.46 / 0.54; win rate 73–83% | — | — |
+| Large-cap one-day reversal (D2) | first run void: ETFs/ETNs (incl. leveraged and VIX products) were in the universe; worst days were VIX-product collapses (Feb 2018, Mar 2020). Rerun with funds excluded by name | — | — |
 | ORB + TA filters (#2), ticks | fail: SMA −1.45, RSI −2.80, MACD −1.85, Bollinger −1.88 | — | — |
 | Gap-and-go on large caps (#7) | fail: all 9 settings positive (0.28–0.62) but none clears Sharpe 1.0; ~0 with costs doubled | — | — |
 | Buy the dip on parabolic runners (#8) | fail: 3-day runs −0.42 to −0.63; 4–5-day runs too rare (4–106 trades) | — | — |
@@ -362,3 +365,14 @@ Kill criteria:      Fails the scorecard on tune (2016-2021). Three trials, count
                     A survivor gets one validate run (2022-2023); the holdout is not used.
 Registered:         2026-10-30
 ```
+
+### Batch D, first run (2026-10-30, run 41094382206)
+10 trials ran (counted). The trial-log commit failed on a push race, so they are recorded here.
+D2's universe ranked every us_equity asset by dollar volume, which includes ETFs and ETNs; the
+biggest one-day losers were often leveraged or volatility products that kept falling overnight
+(worst days Mar 17 2020 −38%, Feb 6 2018 −19%). That breaks the registered rule ("large caps"),
+so D2 is rerun with `params.exclude_funds: true` (fund names: ETF/ETN/Fund/leveraged/VIX and fund
+issuers; tested). The snapshot download ranked funds too, so after exclusion some days have fewer
+than 500 stocks. D1 and D3 are unaffected (SPY only). ORB and gap-and-go universes also include
+funds; not changed here.
+
