@@ -38,6 +38,7 @@ All tune results are 2016–2021, net of costs. "Best" = best setting in its pre
 | Stocks-in-play ORB, tick-resolved | **fail: Sharpe −2.77**, −28%/yr (long-only −1.84). Bar-only bounds were −9.46 / +1.24 | — | — |
 | ORB opening range 1 / 15 / 30 min (#3), ticks | fail: −1.11 / −2.60 / −3.15 | — | — |
 | ORB VWAP exit (#4), ticks | fail: −3.23 / −0.89 / −0.80 at stop 0.1 / 0.5 / 1.0 ATR | — | — |
+| ORB wider stops (E1), ticks | fail: −0.30 / −0.16 / +0.08 at stop 0.25 / 0.5 / 1.0 ATR; costs doubled −2.83 / −2.15 / −1.68. Implied before costs ≈ 2.2 / 1.8 / 1.8 | — | — |
 | ORB + TA filters (#2), ticks | fail: SMA −1.45, RSI −2.80, MACD −1.85, Bollinger −1.88 | — | — |
 | Gap-and-go on large caps (#7) | fail: all 9 settings positive (0.28–0.62) but none clears Sharpe 1.0; ~0 with costs doubled | — | — |
 | Buy the dip on parabolic runners (#8) | fail: 3-day runs −0.42 to −0.63; 4–5-day runs too rare (4–106 trades) | — | — |
