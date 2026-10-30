@@ -16,7 +16,8 @@ periods:
 
 params:
   rule: ibs                # see daytrader/backtest/daily.py: ibs, turnaround_tue, turn_of_month,
-                           # down3_overnight, five_day_low, triple_rsi, rsi2_high
+                           # down3_overnight, five_day_low, triple_rsi, rsi2_high, or any
+  rules: []                # with rule: any, these rules share one account (in at 1x while any is in)
   ibs_entry: 0.2
   rsi_entry: 10
   entry_days_left: 4       # turn of month: buy on the 5th-last trading day (4 days left after it)

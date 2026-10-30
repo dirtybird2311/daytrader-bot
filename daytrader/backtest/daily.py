@@ -197,6 +197,7 @@ class DailyEngine:
         self.split_events = 0
 
     def run(self, data: DailyData, start=None, end=None) -> BacktestResult:
+        self.__dict__.pop("_v", None); self.__dict__.pop("_exit_mode", None); self.__dict__.pop("_cal", None)
         cash = float(self.cfg["account"]["starting_equity"])
         positions: dict[str, Pos] = {}
         rows, trades, decisions = [], [], []
@@ -239,6 +240,9 @@ class DailyEngine:
                     cash -= shares * px + self.comm * shares
                     positions[sym] = Pos(sym, shares, px, date, self._exit_rule(), close, self.comm * shares,
                                          close, close)
+            if self.kind == "spy_rules":  # a combined account may switch between overnight and multi-day holds
+                for ps in positions.values():
+                    ps.exit_rule = self._exit_rule()
             # 4) mark to market at the close
             value = 0.0
             for sym, ps in positions.items():
@@ -273,8 +277,8 @@ class DailyEngine:
             return "next_open"
         if self.kind == "reversal":
             return self.p.get("exit", "next_open")
-        if self.kind == "spy_rules" and self.p["rule"] == "down3_overnight":
-            return "next_open"
+        if self.kind == "spy_rules":
+            return getattr(self, "_exit_mode", "rule")
         return "rule"
 
     def _decide(self, data, date, positions, equity) -> list[tuple[str, str, int]]:
@@ -331,55 +335,68 @@ class DailyEngine:
         return self._cal[date]
 
     def _rules(self, data, date, positions, equity) -> list[tuple[str, str, int]]:
+        """One rule, or several sharing one account (rule: any, rules: [...]): each rule keeps its
+        own virtual in/out state; the account holds the symbol at 1x while any rule is in."""
         sym = getattr(data, "symbol", "SPY")
         b = data.bar(date, sym)
         if b is None or b[1] is None:
             return []
-        snap, rule, p = b[1], self.p["rule"], self.p
+        snap, p = b[1], self.p
+        rules = list(p["rules"]) if p["rule"] == "any" else [p["rule"]]
+        if not hasattr(self, "_v"):
+            self._v = {r: False for r in rules}
+        self._v["down3_overnight"] = False  # always out after the next open
         closes = np.append(data.closes_before(sym, date, 260), snap)
         highs, lows = data.highs_lows_before(date, 6)
         if len(closes) < 30 or len(highs) < 6:
             return []
+        ctx = {"snap": snap, "closes": closes, "highs": highs, "lows": lows}
+        for r in rules:
+            self._v[r] = (not self._rule_exit(r, data, date, ctx)) if self._v[r] else self._rule_entry(r, data, date, ctx)
+        active = [r for r in rules if self._v[r]]
+        self._exit_mode = "next_open" if active == ["down3_overnight"] else "rule"
         held = sym in positions
-        buy = lambda: [(sym, "buy", math.floor(equity * self.max_lev / snap))]
-        above_yhigh = snap > highs[-1]
+        if active and not held:
+            return [(sym, "buy", math.floor(equity * self.max_lev / snap))]
+        if held and not active:
+            return [(sym, "sell", 0)]
+        return []
+
+    def _rule_entry(self, rule, data, date, c) -> bool:
+        snap, closes, lows, p = c["snap"], c["closes"], c["lows"], self.p
         if rule == "ibs":
             h, l = data.range_to_snap(date)
-            ibs = (snap - l) / (h - l) if h > l else 0.5
-            if held:
-                return [(sym, "sell", 0)] if above_yhigh else []
-            return buy() if ibs < float(p.get("ibs_entry", 0.2)) else []
+            return ((snap - l) / (h - l) if h > l else 0.5) < float(p.get("ibs_entry", 0.2))
         if rule == "turnaround_tue":
-            if held:
-                return [(sym, "sell", 0)] if above_yhigh else []
-            return buy() if date.weekday() == 0 and snap < closes[-2] else []
+            return date.weekday() == 0 and snap < closes[-2]
         if rule == "turn_of_month":
-            day_no, left = self._month_position(data, date)
-            if held:
-                return [(sym, "sell", 0)] if day_no == int(p.get("exit_day", 3)) else []
-            return buy() if left == int(p.get("entry_days_left", 4)) else []  # 5th-last day: 4 days left after it
+            return self._month_position(data, date)[1] == int(p.get("entry_days_left", 4))  # 5th-last day
         if rule == "down3_overnight":
-            if held:
-                return []
-            d = np.diff(closes[-4:])
-            return buy() if (d < 0).all() else []
+            return bool((np.diff(closes[-4:]) < 0).all())
         if rule == "five_day_low":
-            if held:
-                return [(sym, "sell", 0)] if above_yhigh else []
-            return buy() if snap < lows[-5:].min() else []
+            return snap < lows[-5:].min()
         if rule == "triple_rsi":
             if len(closes) < 201:
-                return []
-            r = [rsi_wilder(closes[max(0, len(closes) - 100 - k):len(closes) - k], 5) for k in range(4)]  # today, 1, 2, 3 days ago
-            if held:
-                return [(sym, "sell", 0)] if r[0] > 50 else []
-            ok = r[0] < 30 and r[0] < r[1] < r[2] < r[3] and r[3] < 60 and snap > closes[-200:].mean()
-            return buy() if ok else []
+                return False
+            r = self._rsi5(closes)
+            return r[0] < 30 and r[0] < r[1] < r[2] < r[3] and r[3] < 60 and snap > closes[-200:].mean()
         if rule == "rsi2_high":
-            if held:
-                return [(sym, "sell", 0)] if above_yhigh else []
-            return buy() if rsi_wilder(closes[-60:], 2) < float(p.get("rsi_entry", 10)) else []
+            return rsi_wilder(closes[-60:], 2) < float(p.get("rsi_entry", 10))
         raise ValueError(f"Unknown spy_rules rule {rule}")
+
+    def _rule_exit(self, rule, data, date, c) -> bool:
+        if rule == "turn_of_month":
+            return self._month_position(data, date)[0] == int(self.p.get("exit_day", 3))
+        if rule == "triple_rsi":
+            return self._rsi5(c["closes"])[0] > 50
+        if rule == "down3_overnight":
+            return True
+        return c["snap"] > c["highs"][-1]  # ibs, turnaround_tue, five_day_low, rsi2_high
+
+    @staticmethod
+    def _rsi5(closes):  # RSI(5) today, 1, 2 and 3 days ago
+        n = len(closes)
+        return [rsi_wilder(closes[max(0, n - 100 - k):n - k], 5) for k in range(4)]
 
     def _trade(self, ps: Pos, date, exit_bar, px, how) -> dict:
         gross = (px - ps.entry_px) * ps.shares

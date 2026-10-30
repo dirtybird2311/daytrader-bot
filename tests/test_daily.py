@@ -185,13 +185,13 @@ def test_fund_names_are_excluded_from_reversal_universe(market):
     assert drop and not (set(cut["symbol"]) & drop) and 0 < len(cut) <= 30
 
 
-RULES = ["ibs", "turnaround_tue", "turn_of_month", "down3_overnight", "five_day_low", "triple_rsi", "rsi2_high"]
+RULES = ["ibs", "turnaround_tue", "turn_of_month", "down3_overnight", "five_day_low", "triple_rsi", "rsi2_high", "any"]
 
 
 @pytest.mark.parametrize("rule", RULES)
 def test_spy_rules_no_lookahead(rule):
     days = make_days(900 if rule == "triple_rsi" else 320, seed=11, momentum=0.0)
-    c = cfg("spy_rules", rule=rule)
+    c = cfg("spy_rules", rule=rule, rules=["ibs", "turn_of_month", "down3_overnight", "turnaround_tue"])
     clean = DailyEngine(c).run(SpyDaily(days))
     assert len(clean.trades) >= 3, rule
     for day_idx in range(60, len(days) - 10, 7 if len(days) < 400 else 19):
@@ -214,3 +214,16 @@ def test_spy_rules_specifics():
     assert (pd.to_datetime(t["entry_date"]).dt.weekday == 0).all()
     t = DailyEngine(cfg("spy_rules", rule="down3_overnight")).run(SpyDaily(days)).trades
     assert (t["exit_reason"] == "open").all() and (t["days_held"] >= 1).all()
+
+
+def test_combined_account_is_in_whenever_any_rule_is():
+    days = make_days(400, seed=13, momentum=0.0)
+    parts = ["ibs", "turn_of_month", "down3_overnight"]
+    held = lambda r: r.daily["leverage"] > 0.5
+    single = [held(DailyEngine(cfg("spy_rules", rule=x)).run(SpyDaily(days))) for x in parts]
+    combo = DailyEngine(cfg("spy_rules", rule="any", rules=parts)).run(SpyDaily(days))
+    either = single[0] | single[1] | single[2]
+    # same days in the market as the union of the three (a day or two can differ when one rule's
+    # exit and another's entry fall on the same close)
+    assert (held(combo) == either).mean() > 0.97
+    assert combo.daily["leverage"].max() <= 1.02

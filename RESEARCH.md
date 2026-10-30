@@ -420,3 +420,17 @@ Kill criteria:      Scorecard on tune 2016-2021 (Sharpe > 1, >= 100 trades, beat
 Registered:         2026-10-30
 ```
 
+## Batch H: the batch G rules run together (registered 2026-10-30)
+```
+Rule:               H1 nine sleeves, 1/9 of the account each. H2 one account, fully in SPY (1x)
+                    whenever any of the seven SPY rules is in (each rule keeps its own in/out
+                    state; the overnight rule's exit at the open applies only when it is the
+                    only rule in). H3 the same with turn of month + IBS + 3-down overnight.
+                    H4 half H2 on SPY, half IBS + RSI(2) on QQQ.
+Why:                Brandon asked to run them all at once. Each rule alone is in cash most days;
+                    together they are invested more often.
+Kill criteria:      Scorecard on tune 2016-2021, including beating SPY risk-adjusted. 4 trials,
+                    counted. Survivors get one validate run 2022-2023.
+Registered:         2026-10-30
+```
+

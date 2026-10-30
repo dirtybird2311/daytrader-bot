@@ -1,0 +1,32 @@
+# Research batch H: the batch G rules run together, as one account. Pre-registered in RESEARCH.md.
+name: batch_h
+experiments:
+  # H1: every rule gets an equal slice of the account (9 sleeves, 1/9 each)
+  - name: h1_all_nine_sleeves
+    portfolio:
+      - {config: config/spy_rules.yaml, set: {params.rule: ibs}}
+      - {config: config/spy_rules.yaml, set: {params.rule: turnaround_tue}}
+      - {config: config/spy_rules.yaml, set: {params.rule: turn_of_month}}
+      - {config: config/spy_rules.yaml, set: {params.rule: down3_overnight}}
+      - {config: config/spy_rules.yaml, set: {params.rule: five_day_low}}
+      - {config: config/spy_rules.yaml, set: {params.rule: triple_rsi}}
+      - {config: config/spy_rules.yaml, set: {params.rule: rsi2_high}}
+      - {config: config/spy_rules.yaml, set: {params.rule: ibs, symbol: QQQ}}
+      - {config: config/spy_rules.yaml, set: {params.rule: rsi2_high, symbol: QQQ}}
+  # H2: all seven SPY rules share the account: fully in SPY whenever any of them is in
+  - name: h2_spy_any_seven
+    config: config/spy_rules.yaml
+    set:
+      params.rule: any
+      params.rules: [ibs, turnaround_tue, turn_of_month, down3_overnight, five_day_low, triple_rsi, rsi2_high]
+  # H3: the three strongest, firing on different kinds of days
+  - name: h3_spy_any_three
+    config: config/spy_rules.yaml
+    set:
+      params.rule: any
+      params.rules: [turn_of_month, ibs, down3_overnight]
+  # H4: half the account runs H2 on SPY, half runs IBS + RSI(2) on QQQ
+  - name: h4_spy_qqq_halves
+    portfolio:
+      - {config: config/spy_rules.yaml, set: {params.rule: any, params.rules: [ibs, turnaround_tue, turn_of_month, down3_overnight, five_day_low, triple_rsi, rsi2_high]}}
+      - {config: config/spy_rules.yaml, set: {params.rule: any, params.rules: [ibs, rsi2_high], symbol: QQQ}}
