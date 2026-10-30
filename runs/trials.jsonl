@@ -137,3 +137,4 @@
 {"run_id": "20261030-010028-dfb0f8", "time": "2026-10-30T01:00:28+00:00", "config_hash": "dfb0f8255b", "strategy": "spy_noise", "period": "validate", "label": "research:batch_c:base_spy_long_cash_1x_validate", "days": 501, "daily_sharpe": 0.10197031779941572}
 {"run_id": "20261030-105547-a1360a", "time": "2026-10-30T10:55:47+00:00", "config_hash": "a1360a3ddf", "strategy": "spy_noise", "period": "holdout", "label": "holdout-current", "days": 710, "daily_sharpe": 0.02446232794325571}
 {"run_id": "20261030-105832-903fcd", "time": "2026-10-30T10:58:32+00:00", "config_hash": "903fcd0a4e", "strategy": "spy_noise", "period": "holdout", "label": "holdout-final", "days": 710, "daily_sharpe": 0.05156042166451416}
+{"run_id": "20261030-110214-240718", "time": "2026-10-30T11:02:14+00:00", "config_hash": "2407185dfe", "strategy": "spy_noise", "period": "holdout", "label": "holdout-final-1x", "days": 710, "daily_sharpe": 0.05208790745331201}
