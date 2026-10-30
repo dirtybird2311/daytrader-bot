@@ -48,6 +48,7 @@ All tune results are 2016–2021, net of costs. "Best" = best setting in its pre
 | Same, QQQ (G) | fail: IBS 0.86 (12.8%/yr, DD −20%), RSI(2) 0.46 | — | — |
 | Classic rules combined (H): H3 turn of month + IBS + 3-down, one SPY account | **pass**: Sharpe 1.03, 15.5%/yr (SPY 15.4%), DD −17.7%, 152 trades, beta 0.69, costs doubled 1.01. But 2020 alone +53% (SPY +16%); 2021 +6.6% vs +27%. PBO 71% across 12 variants | fail on the letter (59 trades < 100; Sharpe 0.90), but 14.5%/yr, DD −11%, alpha t 2.5: 2022 +2.1% (SPY −19.5%), 2023 +28.2% (SPY +24.3%) | — |
 | Combined H1 (9 sleeves) / H2 (7 SPY rules) / H4 (SPY + QQQ halves) | fail: 0.79 / 0.77 / 0.85 | — | — |
+| Swing rules on large-cap stocks (I) | fail. I2 (3-down + 5-day low + RSI(2), no trend filter, 10 stocks) Sharpe 1.09, 20.5%/yr (SPY 16.4%), but DD −33% (needs ≤ 25%); beta 0.83, corr 0.78; 2016 +45%, 2020 +40%, 2017 +6% vs +19%. With the 200-day filter worse: I1 0.66, I3 (RSI(2)) 0.72, I4 (4 rules, 20 stocks) 0.55 | — | — |
 | ORB + TA filters (#2), ticks | fail: SMA −1.45, RSI −2.80, MACD −1.85, Bollinger −1.88 | — | — |
 | Gap-and-go on large caps (#7) | fail: all 9 settings positive (0.28–0.62) but none clears Sharpe 1.0; ~0 with costs doubled | — | — |
 | Buy the dip on parabolic runners (#8) | fail: 3-day runs −0.42 to −0.63; 4–5-day runs too rare (4–106 trades) | — | — |
