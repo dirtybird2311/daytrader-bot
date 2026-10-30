@@ -30,3 +30,10 @@ experiments:
     portfolio:
       - {config: config/spy_rules.yaml, set: {params.rule: any, params.rules: [ibs, turnaround_tue, turn_of_month, down3_overnight, five_day_low, triple_rsi, rsi2_high]}}
       - {config: config/spy_rules.yaml, set: {params.rule: any, params.rules: [ibs, rsi2_high], symbol: QQQ}}
+  # Validate (once): H3 passed its tune scorecard (Sharpe 1.03, 7 of 7 checks).
+  - name: h3_spy_any_three_validate
+    config: config/spy_rules.yaml
+    period: validate
+    set:
+      params.rule: any
+      params.rules: [turn_of_month, ibs, down3_overnight]
