@@ -376,3 +376,16 @@ issuers; tested). The snapshot download ranked funds too, so after exclusion som
 than 500 stocks. D1 and D3 are unaffected (SPY only). ORB and gap-and-go universes also include
 funds; not changed here.
 
+## Batch F: ORB and gap-and-go without ETFs/ETNs (registered 2026-10-30)
+```
+Rule:               Same as the tick-resolved ORB baseline, long-only, and wider-stop runs, and the
+                    nine gap-and-go settings, but ETFs/ETNs (by name; see daytrader/data/universe.py
+                    is_fund) are dropped from each day's list before ranking to top_n. Their slots go
+                    to the next-ranked stocks (the download keeps 10 spare ORB names and 5 spare
+                    gappers per day; any day short of minute data is counted as missing).
+Why:                Batch D showed fund products polluting a "stocks" universe. The ORB paper and the
+                    gap-and-go rule are about stocks.
+Kill criteria:      Same scorecard on tune. 14 trials, counted. A survivor gets one validate run.
+Registered:         2026-10-30
+```
+

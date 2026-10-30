@@ -1,0 +1,21 @@
+# Research batch F: the stocks-in-play ORB and gap-and-go reruns with ETFs/ETNs excluded
+# (params.exclude_funds). A data correction, not new ideas; registered in RESEARCH.md.
+name: batch_f
+experiments:
+  - name: f1_orb_ticks_nofunds
+    config: config/orb.yaml
+    set: {fills.same_bar_stop: ticks, params.exclude_funds: true}
+  - name: f1_orb_ticks_nofunds_long_only
+    config: config/orb.yaml
+    set: {fills.same_bar_stop: ticks, params.exclude_funds: true, params.allow_short: false}
+  - name: f1_orb_ticks_nofunds_wide_stop
+    config: config/orb.yaml
+    set: {fills.same_bar_stop: ticks, params.exclude_funds: true}
+    grid:
+      params.stop_atr: [0.25, 0.5, 1.0]
+  - name: f2_gapgo_nofunds
+    config: config/gapgo.yaml
+    set: {params.exclude_funds: true}
+    grid:
+      params.min_gap: [0.01, 0.02, 0.03]
+      params.last_entry: ["10:00", "10:30", "11:30"]

@@ -45,7 +45,8 @@ FILL_MODES = ("pessimistic", "close_confirmed", "optimistic", "ticks")
 
 
 class OrbEngine:
-    def __init__(self, cfg: dict):
+    def __init__(self, cfg: dict, exclude: set | None = None):
+        self.exclude = set(exclude or ())  # symbols never traded (ETFs/ETNs when params.exclude_funds)
         p, s, c = cfg["params"], cfg["sizing"], cfg["costs"]
         self.cfg = cfg
         self.screen_cfg = {"min_price": float(p["min_price"]), "min_avg_volume": float(p["min_avg_volume"]),
@@ -103,6 +104,10 @@ class OrbEngine:
                 picks = gap_candidates(feats, **self.gap_cfg)
             else:
                 picks = screen(feats, **self.screen_cfg)
+            if self.exclude and not picks.empty:
+                # ETFs/ETNs out, then re-rank (the download keeps spare names below top_n for this)
+                picks = picks[~picks["symbol"].astype(str).isin(self.exclude)].copy()
+                picks["rank"] = np.arange(1, len(picks) + 1)
             picks = picks[picks["rank"] <= self.top_n] if not picks.empty else picks
             day_trades, missing, notional = [], 0, 0.0
             alloc = eq0 / self.top_n

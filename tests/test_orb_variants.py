@@ -237,3 +237,12 @@ def test_tick_sync_fetches_once_and_keeps_round_lots(tmp_path):
     np.testing.assert_allclose(store.get(d, "BBB", 5), [10.0])
     again = sync_ticks(client, need, tmp_path, Budget(5), log=lambda *_: None)
     assert again["fetched"] == 0 and len(client.calls) == 4
+
+
+def test_excluded_symbols_never_traded_and_slots_refill(ocfg, market):
+    base = OrbEngine(ocfg).run(market)
+    top = base.trades["symbol"].value_counts().index[:3].tolist()
+    res = OrbEngine(ocfg, exclude=set(top)).run(market)
+    assert not set(res.trades["symbol"]) & set(top)
+    # removed names free their slots for the next-ranked stocks, so ranks stay 1..top_n
+    assert res.trades["rank"].max() <= ocfg["params"]["top_n"] and len(res.trades) > 0.5 * len(base.trades)

@@ -81,7 +81,12 @@ class Runner:
                 if missing:
                     sys.exit(f"Minute data is missing for {len(missing)} days ({missing[0]} to {missing[-1]}). "
                              "Run the stocks-in-play download again; it resumes where it stopped.")
-            self.last_engine = DipEngine(cfg) if cfg["strategy"] == "dip" else OrbEngine(cfg)
+            if cfg["strategy"] == "dip":
+                self.last_engine = DipEngine(cfg)
+            else:
+                from .data.universe import fund_symbols
+                funds = fund_symbols(getattr(self.data, "root", "")) if cfg["params"].get("exclude_funds") else set()
+                self.last_engine = OrbEngine(cfg, funds)
             return self.last_engine.run(self.data, start, end)
         self.last_engine = Engine(cfg, build_strategy(cfg))
         return self.last_engine.run(self.days, start, end, exec_days=self.exec_days(cfg))
