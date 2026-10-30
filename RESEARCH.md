@@ -41,7 +41,7 @@ All tune results are 2016–2021, net of costs. "Best" = best setting in its pre
 | ORB wider stops (E1), ticks | fail: −0.30 / −0.16 / +0.08 at stop 0.25 / 0.5 / 1.0 ATR; costs doubled −2.83 / −2.15 / −1.68. Implied before costs ≈ 2.2 / 1.8 / 1.8 | — | — |
 | SPY overnight hold (D1) | fail: Sharpe 0.66, 7.6%/yr, DD −30%, beta 0.50; buy-and-hold SPY was better | — | — |
 | SPY RSI(2) pullback (D3) | fail: 23 / 45 / 65 trades at RSI < 5 / 10 / 15 (needs 100); Sharpe 0.33 / 0.46 / 0.54; win rate 73–83% | — | — |
-| Large-cap one-day reversal (D2) | first run void: ETFs/ETNs (incl. leveraged and VIX products) were in the universe; worst days were VIX-product collapses (Feb 2018, Mar 2020). Rerun with funds excluded by name | — | — |
+| Large-cap one-day reversal (D2), funds excluded | fail: next open −0.51 / −0.76 / −0.78, next close −0.59 / −0.78 / −0.72 at 5 / 10 / 20 picks; −19% to −35%/yr. Costs on daily full turnover ≈ 0.7 Sharpe; roughly flat before costs. (First run with ETFs in the universe void.) | — | — |
 | ORB + TA filters (#2), ticks | fail: SMA −1.45, RSI −2.80, MACD −1.85, Bollinger −1.88 | — | — |
 | Gap-and-go on large caps (#7) | fail: all 9 settings positive (0.28–0.62) but none clears Sharpe 1.0; ~0 with costs doubled | — | — |
 | Buy the dip on parabolic runners (#8) | fail: 3-day runs −0.42 to −0.63; 4–5-day runs too rare (4–106 trades) | — | — |
