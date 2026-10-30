@@ -39,3 +39,17 @@ experiments:
   - name: c4_stop_every_minute
     config: config/spy_noise.yaml
     set: {params.allow_short: false, params.stop_check: every_minute}
+  # Validate (once): C4 passed its tune bar (Sharpe 1.38 >= 1.28, smaller drawdown).
+  # Also reported at 1x (cash account), the size a small Robinhood account would actually run.
+  - name: c4_stop_every_minute_validate
+    config: config/spy_noise.yaml
+    period: validate
+    set: {params.allow_short: false, params.stop_check: every_minute}
+  - name: c4_stop_every_minute_cash_1x_validate
+    config: config/spy_noise.yaml
+    period: validate
+    set: {params.allow_short: false, params.stop_check: every_minute, sizing.max_leverage: 1.0}
+  - name: base_spy_long_cash_1x_validate
+    config: config/spy_noise.yaml
+    period: validate
+    set: {params.allow_short: false, sizing.max_leverage: 1.0}
