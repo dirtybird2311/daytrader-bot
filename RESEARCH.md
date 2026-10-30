@@ -343,3 +343,21 @@ Defaults:           rsi_entry 10, sma_trend 200, sma_exit 5.
 Sweep (tune only):  rsi_entry in {5, 10, 15}.
 Kill criteria:      Fails the scorecard on tune, or fewer than 100 trades.
 ```
+
+## Batch E: stocks-in-play ORB with wider stops (registered 2026-10-30)
+
+### E1 ORB stop distance
+```
+Rule:               Baseline stocks-in-play ORB (config/orb.yaml), tick-resolved fills, with the
+                    stop at 0.25, 0.5 or 1.0 x 14-day ATR instead of the paper's 0.10. Risk per
+                    trade stays 1% of the slot, so wider stops mean fewer shares; leverage cap
+                    unchanged. Exit at the stop or the close, as in the paper.
+Why:                At 0.10 ATR most of the result was decided inside the entry minute (bounds
+                    -9.46 / +1.24, ticks -2.77) and costs were a large share of the risk. A wider
+                    stop tests whether the breakout itself has an edge once noise stops it out
+                    less often. Batch B's VWAP-exit runs at 0.5 / 1.0 ATR scored -0.89 / -0.80,
+                    so the prior is low.
+Kill criteria:      Fails the scorecard on tune (2016-2021). Three trials, counted in the log.
+                    A survivor gets one validate run (2022-2023); the holdout is not used.
+Registered:         2026-10-30
+```

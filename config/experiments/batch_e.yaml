@@ -1,0 +1,11 @@
+# Research batch E: stocks-in-play ORB with wider stops (registered in RESEARCH.md).
+# Same rules and tick-resolved fills as the phase B baseline; only the stop distance changes.
+# Ticks downloaded for the 0.10-ATR stop cover these: a minute whose range reaches a wider
+# stop also reaches the 0.10 stop, so every ambiguous minute here was already fetched.
+name: batch_e
+experiments:
+  - name: e1_orb_wide_stop
+    config: config/orb.yaml
+    set: {fills.same_bar_stop: ticks}
+    grid:
+      params.stop_atr: [0.25, 0.5, 1.0]
