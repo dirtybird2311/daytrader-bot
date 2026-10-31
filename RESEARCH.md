@@ -53,6 +53,7 @@ All tune results are 2016–2021, net of costs. "Best" = best setting in its pre
 | H3 rules, SPY/QQQ/IWM/DIA sharing one account (K1) | fail: Sharpe 0.68, 11.4%/yr (SPY 15.4%), DD −33.5%, beta 0.90. Concentrating the whole account in whichever funds dip made it a leveraged-looking dip bet (2018 −12%, 2021 +5%) | — | — |
 | Stock momentum 12-1 (L1-L3) | fail: top 10 Sharpe 0.51, 13.5%/yr, DD −64% (2020 +105%, 2021 −29%); top 20 0.50, DD −52%; with SPY 200-day filter 0.41. Beta 1.2: a concentrated high-beta book. (2016 is warm-up, flat) | — | — |
 | Stock dips + SPY 200-day filter (L4) | fail: Sharpe 0.77, 13.0%/yr, DD −30% (I2 without the filter: 1.09, 20.5%, −33%) | — | — |
+| ORB with cost-to-move filter (M1), ticks | fail, but the cost fix works: ATR ≥ $3 / stop 0.5 ATR Sharpe 0.84 (costs doubled 0.64), alpha t 2.0, beta 0.00; ATR ≥ $3 / 0.1 ATR 0.52; ATR ≥ $5: 0.42 / 0.45 (vs −2.77 unfiltered). Returns tiny (0.6–2.8%/yr, DD ≤ 8%): sized at 1% of a 1/20 slot with few names a day | — | — |
 | ORB + TA filters (#2), ticks | fail: SMA −1.45, RSI −2.80, MACD −1.85, Bollinger −1.88 | — | — |
 | Gap-and-go on large caps (#7) | fail: all 9 settings positive (0.28–0.62) but none clears Sharpe 1.0; ~0 with costs doubled | — | — |
 | Buy the dip on parabolic runners (#8) | fail: 3-day runs −0.42 to −0.63; 4–5-day runs too rare (4–106 trades) | — | — |
