@@ -1,0 +1,14 @@
+# Research batch L: better returns from individual stocks. Pre-registered in RESEARCH.md.
+name: batch_l
+experiments:
+  - name: l1_momentum_top10
+    config: config/stock_momentum.yaml
+  - name: l2_momentum_top20
+    config: config/stock_momentum.yaml
+    set: {params.n_hold: 20}
+  - name: l3_momentum_top10_spy_filter
+    config: config/stock_momentum.yaml
+    set: {params.market_sma: 200}
+  - name: l4_stock_dips_spy_filter
+    config: config/stock_rules.yaml
+    set: {params.sma_trend: 0, params.market_sma: 200}

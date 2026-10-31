@@ -29,7 +29,7 @@ from .report.html import build_report
 from .strategies import build_strategy
 
 
-UNIVERSE_STRATEGIES = ("orb", "gapgo", "dip", "reversal", "stock_rules")
+UNIVERSE_STRATEGIES = ("orb", "gapgo", "dip", "reversal", "stock_rules", "stock_momentum")
 DAILY_SPY_STRATEGIES = ("spy_overnight", "spy_rsi2", "spy_rules")
 
 
@@ -62,7 +62,7 @@ class Runner:
         self.synthetic = synthetic
 
     def run(self, cfg: dict, start, end):
-        if cfg["strategy"] in ("reversal", "stock_rules"):
+        if cfg["strategy"] in ("reversal", "stock_rules", "stock_momentum"):
             from .backtest.daily import DailyEngine, UniverseDaily
             snaps = self.data.snapshots()
             if snaps.empty:

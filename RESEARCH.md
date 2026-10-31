@@ -490,3 +490,22 @@ K1 shared pool:     H3's rules on SPY, QQQ, IWM, DIA; each (fund, rule) keeps it
 Registered:         2026-10-30
 ```
 
+## Batch L: individual stocks for higher returns (registered 2026-10-30)
+```
+L1-L3 momentum:     Each month's last trading day, rank the top 500 stocks by prior dollar volume
+                    (funds excluded, price > $5) by split-adjusted return from 252 to 21 trading
+                    days back (12-1 month momentum: Jegadeesh & Titman 1993; the most replicated
+                    stock anomaly). Hold the top n in equal weight, rebalanced at that day's close.
+                    Uses closes up to a month old, so no 3:50 pm price is needed.
+  L1 top 10   L2 top 20   L3 top 10, all cash while SPY's prior close is below its 200-day average
+                    First rebalance ~Nov 2016 (needs a year of history). Delisted holdings exit at
+                    their last close.
+L4 stock dips:      I2 (3-down + 5-day low + RSI(2) on stocks, no per-stock trend filter) with new
+                    entries only while SPY is above its 200-day average; aims at I2's -33% drawdown.
+Why:                Brandon wants to try individual stocks for better returns than SPY.
+Kill criteria:      Scorecard on tune 2016-2021 (incl. max drawdown <= 25%, beats SPY risk-adjusted).
+                    4 trials, counted. Survivors get one validate run 2022-2023.
+                    Momentum crashes (e.g. 2009) are outside the data; drawdowns may understate risk.
+Registered:         2026-10-30
+```
+

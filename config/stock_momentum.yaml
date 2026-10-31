@@ -1,0 +1,36 @@
+# Batch L: 12-1 month momentum on individual large caps, rebalanced monthly. Pre-registered in RESEARCH.md.
+# Data: the stocks-in-play cache plus its 3:50 pm snapshot stage (config/orb.yaml, download.snap).
+strategy: stock_momentum
+symbol: US large caps (top 500)
+
+data:
+  start: "2016-01-01"
+  end: null
+  cache_dir: data
+
+periods:
+  tune: ["2016-01-01", "2021-12-31"]
+  validate: ["2022-01-01", "2023-12-31"]
+  holdout: ["2024-01-01", null]
+
+params:
+  large_cap_rank: 500      # by 14-day average dollar volume, prior days only; ETFs/ETNs excluded
+  min_price: 5.0
+  exclude_funds: true
+  n_hold: 10               # equal weight
+  lookback: 252            # momentum = return from 12 months ago...
+  skip: 21                 # ...to 1 month ago (the last month is skipped: it tends to reverse)
+  market_sma: 0            # 200 = hold cash while SPY is below its 200-day average (0 = off)
+
+sizing:
+  max_leverage: 1.0
+
+costs:
+  commission_per_share: 0.0035
+  slippage_per_share: 0.01       # each side; market-on-close / market-on-open fills
+
+account:
+  starting_equity: 25000
+
+benchmark:
+  flat_band: 0.003

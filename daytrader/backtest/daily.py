@@ -189,6 +189,55 @@ class UniverseDaily(DailyData):
                 "low5": h["l"][i - 5:i].min(), "sum199": c[max(0, i - 199):i].sum(),
                 "au": h["au"][i - 1], "ad": h["ad"][i - 1]}
 
+    def ranked_universe(self, date, n: int):
+        """Top n stocks by prior 14-day dollar volume (funds excluded), known before the open."""
+        f = self.base.features(date)
+        if f.empty:
+            return []
+        f = f[["symbol", "prev_close", "avg_volume"]].copy()
+        f["symbol"] = f["symbol"].astype(str)
+        f = f[(f["prev_close"] > self.min_price) & ~f["symbol"].isin(self.exclude)]
+        f = f.assign(dv=f["avg_volume"] * f["prev_close"]).sort_values(["dv", "symbol"], ascending=[False, True])
+        return list(f["symbol"].head(n))
+
+    def momentum(self, symbol, date, lookback: int = 252, skip: int = 21):
+        """Split-adjusted return from `lookback` to `skip` trading days before `date` (prior days only),
+        and yesterday's close; None if the history is too short."""
+        if not hasattr(self, "_adj"):
+            self._build_adj()
+        h = self._adj.get(symbol)
+        if h is None:
+            return None
+        i = h["idx"].get(date)
+        if i is None or i <= lookback:
+            return None
+        px = h["px"]
+        return float(px[i - skip] / px[i - lookback] - 1), float(h["c"][i - 1])
+
+    def spy_trend(self, date, n: int = 200, symbol: str = "SPY") -> bool | None:
+        """Whether SPY's prior close is above the average of its prior n closes."""
+        if not hasattr(self, "_adj"):
+            self._build_adj()
+        h = self._adj.get(symbol)
+        i = None if h is None else h["idx"].get(date)
+        if i is None or i < n + 1:
+            return None
+        c = h["c"]
+        return bool(c[i - 1] > c[i - n:i].mean())
+
+    def _build_adj(self):
+        d = self.base.daily_frame()[["symbol", "date", "o", "c"]].copy()
+        d["symbol"] = d["symbol"].astype(str)
+        d = d.sort_values(["symbol", "date"])
+        self._adj = {}
+        for sym, g in d.groupby("symbol", sort=False):
+            o, c = g["o"].to_numpy(float), g["c"].to_numpy(float)
+            step = np.ones(len(c))
+            for k in range(1, len(c)):
+                r = split_ratio(o[k], c[k - 1])
+                step[k] = c[k] / (c[k - 1] * r) if r is not None else c[k] / c[k - 1]
+            self._adj[sym] = {"idx": {dd: k for k, dd in enumerate(g["date"])}, "px": np.cumprod(step), "c": c}
+
     def _build_hist(self):
         d = self.base.daily_frame()[["symbol", "date", "o", "h", "l", "c"]].copy()
         d["symbol"] = d["symbol"].astype(str)
@@ -290,7 +339,10 @@ class DailyEngine:
             for sym, action, shares in orders:
                 b = data.bar(date, sym)
                 if b is None:
-                    continue
+                    if sym in positions and (action == "sell" or (action == "target" and shares <= 0)):
+                        b = (np.nan, None, positions[sym].last_close)  # no bar (delisted): out at the last close
+                    else:
+                        continue
                 close = b[2]
                 if action == "sell" and sym in positions:
                     ps = positions.pop(sym)
@@ -372,7 +424,7 @@ class DailyEngine:
             return self.p.get("exit", "next_open")
         if self.kind == "spy_rules":
             return getattr(self, "_exit_mode", "rule")
-        if self.kind in ("stock_rules", "etf_pool"):
+        if self.kind in ("stock_rules", "etf_pool", "stock_momentum"):
             return "rule"
         return "rule"
 
@@ -409,6 +461,8 @@ class DailyEngine:
             return self._stock_rules(data, date, positions, equity)
         if self.kind == "etf_pool":
             return self._pool(data, date, positions, equity)
+        if self.kind == "stock_momentum":
+            return self._momentum(data, date, positions, equity)
         if self.kind == "reversal":
             c = data.candidates(date)
             if c is None or c.empty:
@@ -551,6 +605,9 @@ class DailyEngine:
                         self._sv[sym][r] = True
         # new entries
         free = nmax - (len(positions) - len(selling))
+        msma = int(p.get("market_sma", 0))
+        if msma and not data.spy_trend(date, msma, p.get("market_symbol", "SPY")):
+            free = 0  # market filter: no new stock entries while SPY is below its average
         if free > 0:
             c = data.candidates(date)
             cands = []
@@ -615,6 +672,28 @@ class DailyEngine:
             cur = positions[f].shares if f in positions else 0
             if tgt != cur:
                 orders.append((f, "target", int(tgt)))
+        return orders
+
+    def _momentum(self, data, date, positions, equity) -> list[tuple[str, str, int]]:
+        """Batch L: buy the top-n large caps by 12-1 month momentum, equal weight, rebalanced at the
+        close of each month's last trading day (ranking uses closes up to 21 trading days back)."""
+        p = self.p
+        if self._month_position(data, date)[1] != 0:
+            return []
+        n = int(p["n_hold"])
+        msma = int(p.get("market_sma", 0))
+        risk_on = True if not msma else data.spy_trend(date, msma, p.get("market_symbol", "SPY"))
+        picks = []
+        if risk_on:
+            scored = []
+            for sym in data.ranked_universe(date, int(p["large_cap_rank"])):
+                m = data.momentum(sym, date, int(p.get("lookback", 252)), int(p.get("skip", 21)))
+                if m is not None and m[1] > 0:
+                    scored.append((-m[0], sym, m[1]))
+            picks = sorted(scored)[:n]
+        want = {sym: math.floor(equity * self.max_lev / n / c1) for _, sym, c1 in picks}
+        orders = [(sym, "target", 0) for sym in positions if sym not in want]
+        orders += [(sym, "target", sh) for sym, sh in want.items()]
         return orders
 
     @staticmethod

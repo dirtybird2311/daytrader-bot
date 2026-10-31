@@ -283,3 +283,31 @@ def test_etf_pool_no_lookahead_and_full_use_of_cash():
         cut = funds["SPY"][day_idx].date
         before = lambda r: [k for k in r.decision_keys() if k[0] < cut or (k[0] == cut and k[1] <= SNAP_BAR)]
         assert before(clean) == before(res), f"decision changed at {cut}"
+
+
+@pytest.mark.parametrize("msma", [0, 50])
+def test_stock_momentum_no_lookahead_and_monthly(msma):
+    m = SyntheticOrbData(n_days=420, n_symbols=40, seed=8, momentum=0.0)
+    c = cfg("stock_momentum", large_cap_rank=30, min_price=1.0, n_hold=5, lookback=120, skip=10, market_sma=msma,
+            market_symbol="S000")
+    clean = DailyEngine(c).run(UniverseDaily(m, m.snapshots(), 30, 1.0))
+    t = clean.trades
+    assert len(t) > 10 and clean.daily["leverage"].max() <= 1.05
+    # trades happen only on a month's last trading day
+    ds = pd.Series(pd.to_datetime(m.dates))
+    last = set(ds.groupby(ds.dt.year * 12 + ds.dt.month).max().dt.date)
+    assert set(pd.to_datetime(t["date"]).dt.date) <= last
+    for cut_idx in range(150, 410, 13):
+        cut = m.dates[cut_idx]
+        p = Poisoned(m, cut)
+        dirty = DailyEngine(c).run(UniverseDaily(p, p._snaps, 30, 1.0))
+        before = lambda r: [k for k in r.decision_keys() if k[0] < cut or (k[0] == cut and k[1] <= SNAP_BAR)]
+        assert before(clean) == before(dirty), cut
+
+
+def test_stock_rules_market_filter_only_removes_entries():
+    m = SyntheticOrbData(n_days=320, n_symbols=40, seed=5, momentum=0.0)
+    base = dict(large_cap_rank=30, min_price=1.0, sma_trend=0, max_positions=5, rules=["down3_overnight", "rsi2_high"])
+    a = DailyEngine(cfg("stock_rules", **base)).run(UniverseDaily(m, m.snapshots(), 30, 1.0)).trades
+    b = DailyEngine(cfg("stock_rules", market_sma=50, market_symbol="S000", **base)).run(UniverseDaily(m, m.snapshots(), 30, 1.0)).trades
+    assert 0 < len(b) < len(a)
