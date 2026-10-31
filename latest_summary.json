@@ -1,21 +1,21 @@
 {
-  "run_id": "20261030-110214-240718",
+  "run_id": "20261031-005359-ebbd0c",
   "period": "holdout",
   "passed": false,
   "synthetic": false,
-  "sharpe": 0.827,
-  "annual_return": 0.0254,
-  "max_drawdown": -0.0289,
-  "trades": 507,
+  "sharpe": 0.945,
+  "annual_return": 0.1187,
+  "max_drawdown": -0.1978,
+  "trades": 72,
   "checks": {
-    "Closed trades": true,
+    "Closed trades": false,
     "Sharpe ratio, net of costs": false,
-    "Profit factor": false,
+    "Profit factor": true,
     "Max drawdown": true,
     "Beats SPY, risk-adjusted (Sharpe gap)": false,
     "Sharpe with costs doubled": true,
-    "Positive trailing year": false,
-    "Neighbouring settings also profitable": true
+    "Positive trailing year": true,
+    "Neighbouring settings also profitable": null
   },
-  "report": "reports/20261030-110214-240718_spy_noise_holdout.html"
+  "report": "reports/20261031-005359-ebbd0c_spy_rules_holdout.html"
 }
