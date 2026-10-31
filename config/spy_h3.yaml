@@ -1,0 +1,38 @@
+# H3 (batch H): turn of month + IBS + 3-down overnight on SPY, in while ANY rule is in.
+# Same as config/spy_rules.yaml with rule: any. Used to score H3's one-time holdout.
+strategy: spy_rules
+symbol: SPY
+
+data:
+  start: "2015-01-01"    # 2015 is warm-up only (the volatility regime filter looks back a year)
+  end: null              # null = up to the latest completed day
+  cache_dir: data
+
+# Every trading day in the span is used; nothing is hand-picked.
+# Tune freely, validate to check, score the holdout once at the very end.
+periods:
+  tune: ["2016-01-01", "2021-12-31"]
+  validate: ["2022-01-01", "2023-12-31"]
+  holdout: ["2024-01-01", null]
+
+params:
+  rule: any                # see daytrader/backtest/daily.py: ibs, turnaround_tue, turn_of_month,
+                           # down3_overnight, five_day_low, triple_rsi, rsi2_high, or any
+  rules: [turn_of_month, ibs, down3_overnight]                # with rule: any, these rules share one account (in at 1x while any is in)
+  ibs_entry: 0.2
+  rsi_entry: 10
+  entry_days_left: 4       # turn of month: buy on the 5th-last trading day (4 days left after it)
+  exit_day: 3              # ...sell at the close of the 3rd trading day of the new month
+
+sizing:
+  max_leverage: 1.0
+
+costs:
+  commission_per_share: 0.0035
+  slippage_per_share: 0.01       # each side; market-on-close / market-on-open fills
+
+account:
+  starting_equity: 25000
+
+benchmark:
+  flat_band: 0.003

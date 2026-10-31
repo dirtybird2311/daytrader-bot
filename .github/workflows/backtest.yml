@@ -7,7 +7,7 @@ on:
       strategy:
         description: Strategy
         type: choice
-        options: [spy_noise, spy_lasthalf, spy_vwap_revert, orb]
+        options: [spy_noise, spy_lasthalf, spy_vwap_revert, spy_h3, orb]
         default: spy_noise
       command:
         description: What to run
