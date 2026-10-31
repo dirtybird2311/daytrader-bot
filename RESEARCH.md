@@ -51,6 +51,8 @@ All tune results are 2016–2021, net of costs. "Best" = best setting in its pre
 | Swing rules on large-cap stocks (I) | fail. I2 (3-down + 5-day low + RSI(2), no trend filter, 10 stocks) Sharpe 1.09, 20.5%/yr (SPY 16.4%), but DD −33% (needs ≤ 25%); beta 0.83, corr 0.78; 2016 +45%, 2020 +40%, 2017 +6% vs +19%. With the 200-day filter worse: I1 0.66, I3 (RSI(2)) 0.72, I4 (4 rules, 20 stocks) 0.55 | — | — |
 | H3 rules on more funds (J), equal slices | fail, just: J1 SPY/QQQ/IWM/DIA Sharpe 0.96, 14.1%/yr, DD −18%, 584 trades; J2 + 9 sectors 0.93, 11.9%/yr, DD −18%, 1,970 trades. Per fund (not trials): XLK 1.46, QQQ 1.10, DIA 0.96, XLV 0.94, XLY 0.92, XLU 0.90, XLP 0.89, XLI 0.46, XLB 0.41, IWM 0.39, XLE 0.14, XLF 0.09. Picking the winners after the fact would be overfitting | — | — |
 | H3 rules, SPY/QQQ/IWM/DIA sharing one account (K1) | fail: Sharpe 0.68, 11.4%/yr (SPY 15.4%), DD −33.5%, beta 0.90. Concentrating the whole account in whichever funds dip made it a leveraged-looking dip bet (2018 −12%, 2021 +5%) | — | — |
+| Stock momentum 12-1 (L1-L3) | fail: top 10 Sharpe 0.51, 13.5%/yr, DD −64% (2020 +105%, 2021 −29%); top 20 0.50, DD −52%; with SPY 200-day filter 0.41. Beta 1.2: a concentrated high-beta book. (2016 is warm-up, flat) | — | — |
+| Stock dips + SPY 200-day filter (L4) | fail: Sharpe 0.77, 13.0%/yr, DD −30% (I2 without the filter: 1.09, 20.5%, −33%) | — | — |
 | ORB + TA filters (#2), ticks | fail: SMA −1.45, RSI −2.80, MACD −1.85, Bollinger −1.88 | — | — |
 | Gap-and-go on large caps (#7) | fail: all 9 settings positive (0.28–0.62) but none clears Sharpe 1.0; ~0 with costs doubled | — | — |
 | Buy the dip on parabolic runners (#8) | fail: 3-day runs −0.42 to −0.63; 4–5-day runs too rare (4–106 trades) | — | — |
