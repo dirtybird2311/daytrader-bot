@@ -47,6 +47,8 @@ FILL_MODES = ("pessimistic", "close_confirmed", "optimistic", "ticks")
 class OrbEngine:
     def __init__(self, cfg: dict, exclude: set | None = None):
         self.exclude = set(exclude or ())  # symbols never traded (ETFs/ETNs when params.exclude_funds)
+        self.min_atr_trade = float(cfg["params"].get("min_atr_trade", 0))
+        self.rank_pool = int(cfg["params"].get("rank_pool", cfg.get("download", {}).get("top_k", 30)))
         p, s, c = cfg["params"], cfg["sizing"], cfg["costs"]
         self.cfg = cfg
         self.screen_cfg = {"min_price": float(p["min_price"]), "min_avg_volume": float(p["min_avg_volume"]),
@@ -107,6 +109,11 @@ class OrbEngine:
             if self.exclude and not picks.empty:
                 # ETFs/ETNs out, then re-rank (the download keeps spare names below top_n for this)
                 picks = picks[~picks["symbol"].astype(str).isin(self.exclude)].copy()
+                picks["rank"] = np.arange(1, len(picks) + 1)
+            if self.min_atr_trade > 0 and not picks.empty:
+                # cost-to-move filter (batch M): from the top `rank_pool` stocks in play (the names
+                # the download covers), trade only those whose ATR is large next to a cent of cost
+                picks = picks[(picks["rank"] <= self.rank_pool) & (picks["atr"] >= self.min_atr_trade)].copy()
                 picks["rank"] = np.arange(1, len(picks) + 1)
             picks = picks[picks["rank"] <= self.top_n] if not picks.empty else picks
             day_trades, missing, notional = [], 0, 0.0

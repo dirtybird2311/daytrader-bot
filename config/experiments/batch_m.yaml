@@ -1,0 +1,10 @@
+# Research batch M: stocks-in-play ORB, traded only where the daily range dwarfs a cent of cost.
+# Pre-registered in RESEARCH.md.
+name: batch_m
+experiments:
+  - name: m1_orb_cost_to_move
+    config: config/orb.yaml
+    set: {fills.same_bar_stop: ticks, params.exclude_funds: true, params.rank_pool: 30}
+    grid:
+      params.min_atr_trade: [3.0, 5.0]
+      params.stop_atr: [0.1, 0.5]

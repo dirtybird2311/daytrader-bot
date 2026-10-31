@@ -511,3 +511,19 @@ Kill criteria:      Scorecard on tune 2016-2021 (incl. max drawdown <= 25%, beat
 Registered:         2026-10-30
 ```
 
+## Batch M: ORB ranked by cost-to-move (registered 2026-10-30)
+```
+Rule:               Stocks-in-play ORB (paper rules, tick-resolved fills, ETFs/ETNs excluded), but
+                    from the top 30 by opening relative volume (the names the download covers),
+                    trade only those with 14-day ATR >= $3 or >= $5, up to 20 names, ranked as before.
+                    Stop at 0.1 ATR (paper) or 0.5 ATR. 2 x 2 grid = 4 trials, counted.
+Why:                ORB's edge before costs was real (implied Sharpe ~1.8-2.2) but 1.35 cents per
+                    share each way was a large share of each trade's risk. On a stock with a $5
+                    ATR, a 0.1-ATR stop is 50 cents, so costs are ~5% of the risk instead of ~25%
+                    on a $0.50-ATR name. Names ranked 21-30 may lack tick data for ambiguous entry
+                    minutes (worst case assumed); counted in fills_ticks_missing.
+Kill criteria:      Scorecard on tune 2016-2021 (Sharpe > 1, costs doubled > 0.5, ...). A survivor
+                    gets one validate run 2022-2023.
+Registered:         2026-10-30
+```
+

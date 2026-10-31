@@ -27,6 +27,7 @@ VARIANTS = {
     "rsi": {"params.ta_filter": "rsi"},
     "macd": {"params.ta_filter": "macd"},
     "bollinger": {"params.ta_filter": "bollinger"},
+    "atr_filter": {"params.min_atr_trade": 1.0},
 }
 
 
@@ -246,3 +247,11 @@ def test_excluded_symbols_never_traded_and_slots_refill(ocfg, market):
     assert not set(res.trades["symbol"]) & set(top)
     # removed names free their slots for the next-ranked stocks, so ranks stay 1..top_n
     assert res.trades["rank"].max() <= ocfg["params"]["top_n"] and len(res.trades) > 0.5 * len(base.trades)
+
+
+def test_min_atr_trade_only_keeps_wide_range_names(ocfg, market):
+    base = OrbEngine(ocfg).run(market)
+    cut = float(base.trades["atr"].median()) if "atr" in base.trades else None
+    c = override(ocfg, {"params.min_atr_trade": 1.0, "params.rank_pool": 30})
+    res = OrbEngine(c).run(market)
+    assert len(res.trades) < len(base.trades)
