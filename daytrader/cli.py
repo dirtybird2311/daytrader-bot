@@ -45,12 +45,19 @@ class Runner:
         else:
             if synthetic:
                 self.days = make_days(n_days=2100, start=dt.date(2016, 1, 4), seed=7, momentum=0.03)
+                if self.kind == "etf_pool":
+                    self.fund_days = {f: make_days(n_days=2100, start=dt.date(2016, 1, 4), seed=7 + k, momentum=0.03)
+                                      for k, f in enumerate(cfg["params"]["funds"])}
             else:
                 from .data.store import load_days
                 start = dt.date.fromisoformat(str(cfg["data"]["start"]))
                 end = cfg["data"].get("end")
-                self.days = load_days(cfg["symbol"], start, dt.date.fromisoformat(str(end)) if end else None,
-                                      cfg["data"]["cache_dir"])
+                end = dt.date.fromisoformat(str(end)) if end else None
+                if self.kind == "etf_pool":
+                    self.fund_days = {f: load_days(f, start, end, cfg["data"]["cache_dir"]) for f in cfg["params"]["funds"]}
+                    self.days = self.fund_days[cfg["params"]["funds"][0]]
+                else:
+                    self.days = load_days(cfg["symbol"], start, end, cfg["data"]["cache_dir"])
             self._by_date = {d.date: d for d in self.days}
         self.synthetic = synthetic
 
@@ -67,6 +74,11 @@ class Runner:
                                                      float(cfg["params"]["min_price"]), funds)
             self.last_engine = DailyEngine(cfg)
             return self.last_engine.run(self._universe_daily, start, end)
+        if cfg["strategy"] == "etf_pool":
+            from .backtest.daily import DailyEngine, MultiDaily, SpyDaily
+            views = {f: SpyDaily(d, f) for f, d in self.fund_days.items()}
+            self.last_engine = DailyEngine(cfg)
+            return self.last_engine.run(MultiDaily(views, cfg["params"]["funds"][0]), start, end)
         if cfg["strategy"] in DAILY_SPY_STRATEGIES:
             from .backtest.daily import DailyEngine, SpyDaily
             self.last_engine = DailyEngine(cfg)

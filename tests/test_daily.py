@@ -261,3 +261,25 @@ def test_stock_rules_position_cap():
         ent, ex = pd.to_datetime(t["entry_date"]), pd.to_datetime(t["date"])
         open_n = ((ent <= pd.Timestamp(d)) & (ex > pd.Timestamp(d))).sum()
         assert open_n <= 3
+
+
+def _pool_data(days_by_fund):
+    from daytrader.backtest.daily import MultiDaily
+    return MultiDaily({f: SpyDaily(d, f) for f, d in days_by_fund.items()}, "SPY")
+
+
+def test_etf_pool_no_lookahead_and_full_use_of_cash():
+    funds = {f: make_days(320, seed=20 + k, momentum=0.0) for k, f in enumerate(["SPY", "QQQ", "IWM", "DIA"])}
+    c = cfg("etf_pool")
+    clean = DailyEngine(c).run(_pool_data(funds))
+    assert len(clean.trades) > 30
+    lev = clean.daily["leverage"]
+    assert lev.max() <= 1.02
+    # whenever anything is held, (nearly) the whole account is invested: no idle slices
+    assert (lev[lev > 0.05] > 0.9).mean() > 0.9
+    for day_idx in range(40, 310, 9):
+        dirty = {f: (poison(d, day_idx, SNAP_BAR + 1) if f == "QQQ" else d) for f, d in funds.items()}
+        res = DailyEngine(c).run(_pool_data(dirty))
+        cut = funds["SPY"][day_idx].date
+        before = lambda r: [k for k in r.decision_keys() if k[0] < cut or (k[0] == cut and k[1] <= SNAP_BAR)]
+        assert before(clean) == before(res), f"decision changed at {cut}"

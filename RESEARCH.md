@@ -475,3 +475,17 @@ Kill criteria:      Scorecard on tune 2016-2021. 2 trials, counted. A survivor g
 Registered:         2026-10-30
 ```
 
+## Batch K (registered 2026-10-30)
+```
+H3 holdout:         H3 unchanged, scored once on 2024-01-02 to the latest day. This uses up the
+                    holdout for H3. The years have been seen by everyone (and SPY's 2024+ was used for
+                    the momentum holdout), so it is weaker evidence than the 2022-2023 validate run.
+                    Pass = the same scorecard, judged with the 2-year trade count caveat noted.
+K1 shared pool:     H3's rules on SPY, QQQ, IWM, DIA; each (fund, rule) keeps its own in/out state;
+                    the whole account splits equally across the funds with any rule in, re-split
+                    only on days that set changes (partial buys/sells at the close, costs charged).
+                    Fixes J1's idle cash. 1 trial, counted. Scorecard on tune; a survivor gets one
+                    validate run.
+Registered:         2026-10-30
+```
+

@@ -116,6 +116,21 @@ class SpyDaily(DailyData):
         return float(self._c[i] / self._c[i - 1] - 1), float(self._c[i] / self._o[i] - 1)
 
 
+class MultiDaily(DailyData):
+    """Several funds' SpyDaily views on one calendar (batch K's shared pool)."""
+
+    def __init__(self, views: dict, market_symbol: str = "SPY"):
+        self.views, self.market_symbol = views, market_symbol
+        self.dates = list(views[market_symbol].dates)
+
+    def bar(self, date, symbol):
+        v = self.views.get(symbol)
+        return None if v is None or date not in v._idx else v.bar(date, symbol)
+
+    def market(self, date):
+        return self.views[self.market_symbol].market(date)
+
+
 class UniverseDaily(DailyData):
     """Stocks-in-play cache (daily bars, features, SPY) plus 3:50 pm snapshots."""
 
@@ -243,7 +258,8 @@ class DailyEngine:
 
     def run(self, data: DailyData, start=None, end=None) -> BacktestResult:
         self.__dict__.pop("_v", None); self.__dict__.pop("_exit_mode", None); self.__dict__.pop("_cal", None)
-        self._sv, self._exit_modes = {}, {}
+        self._sv, self._exit_modes, self._pv = {}, {}, {}
+        self.__dict__.pop("_prev_active", None)
         cash = float(self.cfg["account"]["starting_equity"])
         positions: dict[str, Pos] = {}
         rows, trades, decisions = [], [], []
@@ -281,6 +297,34 @@ class DailyEngine:
                     px = close - self.slip
                     cash += ps.shares * px - self.comm * ps.shares
                     trades.append(self._trade(ps, date, 389, px, "close"))
+                elif action == "target":
+                    ps = positions.get(sym)
+                    cur = ps.shares if ps else 0
+                    diff = shares - cur
+                    if shares <= 0 and ps:
+                        positions.pop(sym)
+                        px = close - self.slip
+                        cash += ps.shares * px - self.comm * ps.shares
+                        trades.append(self._trade(ps, date, 389, px, "close"))
+                    elif diff > 0:
+                        px = close + self.slip
+                        cash -= diff * px + self.comm * diff
+                        if ps is None:
+                            positions[sym] = Pos(sym, diff, px, date, self._exit_rule(), close, self.comm * diff,
+                                                 close, close)
+                        else:
+                            ps.entry_px = (ps.entry_px * cur + px * diff) / (cur + diff)
+                            ps.shares += diff
+                            ps.cost += self.comm * diff
+                    elif diff < 0 and ps:
+                        sold = -diff
+                        px = close - self.slip
+                        cash += sold * px - self.comm * sold
+                        part = Pos(sym, sold, ps.entry_px, ps.entry_date, ps.exit_rule, ps.last_close,
+                                   ps.cost * sold / cur, ps.hi, ps.lo)
+                        ps.cost -= part.cost
+                        ps.shares -= sold
+                        trades.append(self._trade(part, date, 389, px, "trim"))
                 elif action == "buy" and sym not in positions and shares >= 1:
                     px = close + self.slip
                     cash -= shares * px + self.comm * shares
@@ -289,7 +333,7 @@ class DailyEngine:
             if self.kind == "spy_rules":  # a combined account may switch between overnight and multi-day holds
                 for ps in positions.values():
                     ps.exit_rule = self._exit_rule()
-            if self.kind == "stock_rules":
+            if self.kind in ("stock_rules", "etf_pool"):
                 for sym, ps in positions.items():
                     ps.exit_rule = self._exit_modes.get(sym, "rule")
             # 4) mark to market at the close
@@ -328,7 +372,7 @@ class DailyEngine:
             return self.p.get("exit", "next_open")
         if self.kind == "spy_rules":
             return getattr(self, "_exit_mode", "rule")
-        if self.kind == "stock_rules":
+        if self.kind in ("stock_rules", "etf_pool"):
             return "rule"
         return "rule"
 
@@ -363,6 +407,8 @@ class DailyEngine:
             return self._rules(data, date, positions, equity)
         if self.kind == "stock_rules":
             return self._stock_rules(data, date, positions, equity)
+        if self.kind == "etf_pool":
+            return self._pool(data, date, positions, equity)
         if self.kind == "reversal":
             c = data.candidates(date)
             if c is None or c.empty:
@@ -525,6 +571,50 @@ class DailyEngine:
         # exit at the next open only when the overnight rule is the only one in
         for sym, v in self._sv.items():
             self._exit_modes[sym] = "next_open" if [r for r in rules if v[r]] == ["down3_overnight"] else "rule"
+        return orders
+
+    def _pool(self, data, date, positions, equity) -> list[tuple[str, str, int]]:
+        """Batch K: H3's rules on several funds sharing one account. Each (fund, rule) keeps its
+        own in/out state; the account splits equally across the funds with any rule in, and
+        re-splits only on days that set changes."""
+        p = self.p
+        rules, funds = list(p["rules"]), list(p["funds"])
+        snaps = {}
+        for f in funds:
+            view = data.views.get(f)
+            b = data.bar(date, f)
+            if view is None or b is None or b[1] is None:
+                continue
+            snap = b[1]
+            closes = np.append(view.closes_before(f, date, 260), snap)
+            highs, lows = view.highs_lows_before(date, 6)
+            if len(closes) < 30 or len(highs) < 6:
+                continue
+            ctx = {"snap": snap, "closes": closes, "highs": highs, "lows": lows}
+            v = self._pv.setdefault(f, {r: False for r in rules})
+            v["down3_overnight"] = False
+            for r in rules:
+                v[r] = (not self._rule_exit(r, view, date, ctx)) if v[r] else self._rule_entry(r, view, date, ctx)
+            snaps[f] = snap
+        if not snaps:
+            return []
+        active = [f for f in funds if f in snaps and any(self._pv[f].values())]
+        for f in funds:
+            if f in self._pv:
+                self._exit_modes[f] = "next_open" if [r for r in rules if self._pv[f][r]] == ["down3_overnight"] else "rule"
+        held = {f for f in positions if positions[f].shares > 0}
+        if set(active) == held and set(active) == set(getattr(self, "_prev_active", [])):
+            self._prev_active = active
+            return []
+        self._prev_active = active
+        orders = []
+        for f in funds:
+            if f not in snaps:
+                continue
+            tgt = math.floor(equity * self.max_lev / len(active) / snaps[f]) if f in active else 0
+            cur = positions[f].shares if f in positions else 0
+            if tgt != cur:
+                orders.append((f, "target", int(tgt)))
         return orders
 
     @staticmethod

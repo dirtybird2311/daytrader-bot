@@ -1,0 +1,13 @@
+# Research batch K. Pre-registered in RESEARCH.md.
+name: batch_k
+experiments:
+  # H3's one-time holdout score (2024-01-02 to now), SPY only, rules unchanged
+  - name: h3_spy_any_three_holdout
+    config: config/spy_rules.yaml
+    period: holdout
+    set:
+      params.rule: any
+      params.rules: [turn_of_month, ibs, down3_overnight]
+  # K1: H3's rules on SPY, QQQ, IWM, DIA sharing one account (equal split across funds signaling)
+  - name: k1_pool_four_index_funds
+    config: config/etf_pool.yaml
